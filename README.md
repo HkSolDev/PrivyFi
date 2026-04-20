@@ -163,20 +163,6 @@ Free API keys: [Zerion](https://zerion.io/api) · [Helius](https://helius.dev) �
 
 ---
 
-## Hackathon Tracks Targeted
-
-- 100xDevs
-- Palm USD
-- MagicBlock + SNS
-- Zerion
-- Solflare / Kamino / dFlow / QuickNode
-- AISO
-- Torque MCP
-
-**Deadline: May 11, 2026 — Solana Frontier**
-
----
-
 ## License
 
 MIT
