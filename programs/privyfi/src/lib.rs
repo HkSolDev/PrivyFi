@@ -14,26 +14,29 @@ pub mod privyfi {
     use super::*;
 
     pub fn initialize_user(ctx: Context<InitializeUser>) -> Result<()> {
-        instructions::initialize_user::handler(ctx)
-    }
+    create_user(ctx)?;
+        Ok(())
+    
+    
+}
 
-    pub fn initialize_pool(ctx: Context<InitializePool>, name: String, apy_bps: u64) -> Result<()> {
-        instructions::initialize_pool::handler(ctx, name, apy_bps)
-    }
+    // pub fn initialize_pool(ctx: Context<InitializePool>, name: String, apy_bps: u64) -> Result<()> {
+    //     instructions::initialize_pool::handler(ctx, name, apy_bps)
+    // }
 
-    pub fn deposit(ctx: Context<Deposit>, amount: u64) -> Result<()> {
-        instructions::deposit::handler(ctx, amount)
-    }
+    // pub fn deposit(ctx: Context<Deposit>, amount: u64) -> Result<()> {
+    //     instructions::deposit::handler(ctx, amount)
+    // }
 
-    pub fn withdraw(ctx: Context<Withdraw>) -> Result<()> {
-        instructions::withdraw::handler(ctx)
-    }
+    // pub fn withdraw(ctx: Context<Withdraw>) -> Result<()> {
+    //     instructions::withdraw::handler(ctx)
+    // }
 
-    pub fn toggle_private(ctx: Context<TogglePrivate>) -> Result<()> {
-        instructions::toggle_private::handler(ctx)
-    }
+    // pub fn toggle_private(ctx: Context<TogglePrivate>) -> Result<()> {
+    //     instructions::toggle_private::handler(ctx)
+    // }
 
-    pub fn record_action(ctx: Context<RecordAction>) -> Result<()> {
-        instructions::record_action::handler(ctx)
-    }
+    // pub fn record_action(ctx: Context<RecordAction>) -> Result<()> {
+    //     instructions::record_action::handler(ctx)
+    // }
 }
