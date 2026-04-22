@@ -22,9 +22,9 @@ pub mod privyfi {
         create_pool(ctx, name, apy_bps)
     }
 
-    // pub fn deposit(ctx: Context<Deposit>, amount: u64) -> Result<()> {
-    //     instructions::deposit::handler(ctx, amount)
-    // }
+    pub fn deposit(ctx: Context<Deposit>, amount: u64) -> Result<()> {
+        deposit_handler(ctx, amount)
+    }
 
     // pub fn withdraw(ctx: Context<Withdraw>) -> Result<()> {
     //     instructions::withdraw::handler(ctx)

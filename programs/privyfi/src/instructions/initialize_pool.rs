@@ -27,7 +27,7 @@ pub struct InitializePool<'info> {
         associated_token::authority = pool,
         associated_token::token_program = token_program
     )]
-    pub supply_vault: InterfaceAccount<'info, TokenAccount>,
+    pub pool_vault: InterfaceAccount<'info, TokenAccount>,
 
     pub token_program: Interface<'info, TokenInterface>,
     pub associated_token_program: Program<'info, AssociatedToken>,
@@ -37,7 +37,7 @@ pub struct InitializePool<'info> {
 pub fn create_pool(ctx: Context<InitializePool>, name: String, apy_bps: u64) -> Result<()> {
     let pool = &mut ctx.accounts.pool;
     pool.mint_token = ctx.accounts.mint_token.key();
-    pool.supply_vault = ctx.accounts.supply_vault.key();
+    pool.supply_vault = ctx.accounts.pool_vault.key();
     pool.vault_name = name;
     pool.apy_bps = apy_bps;
     pool.total_staked = 0;

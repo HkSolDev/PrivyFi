@@ -2,7 +2,7 @@ import * as anchor from "@coral-xyz/anchor";
 import { Keypair, PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
 import { BankrunProvider, startAnchor } from "anchor-bankrun";
 import IDL from "../target/idl/privyfi.json" with { type: "json" };
-import { MINT_SIZE, TOKEN_PROGRAM_ID, createInitializeMint2Instruction, getAssociatedTokenAddressSync } from "@solana/spl-token";
+import { MINT_SIZE, TOKEN_PROGRAM_ID, createInitializeMint2Instruction, getAssociatedTokenAddressSync, createMintToInstruction, createAssociatedTokenAccountInstruction } from "@solana/spl-token";
 
 import type { Privyfi } from "../target/types/privyfi";
 import { assert } from "chai";
@@ -104,4 +104,40 @@ describe("privyfi", () => {
       assert.equal(poolAcc.vaultName, "pool");
       assert.equal(poolAcc.apyBps.toString(), "500");
   })
+
+  //Deposite Test
+it("deposite", async() => {
+   const supplyVault = getAssociatedTokenAddressSync(mintToken.publicKey, poolPda, true);
+
+   // Derive the user's Associated Token Account (ATA) address
+   const userAta = getAssociatedTokenAddressSync(mintToken.publicKey, user.publicKey);
+
+   // Build transaction: create the ATA + mint 2_000_000 tokens into it
+   const [latestBlockhash2] = await (provider.context.banksClient as any).getLatestBlockhash();
+   const mintTx = new Transaction().add(
+     createAssociatedTokenAccountInstruction(user.publicKey, userAta, user.publicKey, mintToken.publicKey),
+     createMintToInstruction(mintToken.publicKey, userAta, user.publicKey, 2_000_000)
+   );
+   mintTx.recentBlockhash = latestBlockhash2;
+   mintTx.feePayer = user.publicKey;
+   mintTx.sign(user);
+   await (provider.context.banksClient as any).processTransaction(mintTx);
+
+    await program.methods.deposit(new anchor.BN(1000000))
+      .accounts({
+        user: user.publicKey,
+        pool: poolPda,
+        mintToken: mintToken.publicKey,
+        poolVault: supplyVault,
+        tokenProgram: TOKEN_PROGRAM_ID,
+      })
+      .signers([user])
+      .rpc()
+
+      let vaultAccountInfo = await (provider.context.banksClient as any).getAccount(supplyVault);
+      // SPL Token account layout: bytes 64-72 hold the token amount (u64, little-endian)
+      const vaultBalance = Buffer.from(vaultAccountInfo.data).readBigUInt64LE(64);
+      console.log("Supply Vault Balance: ", vaultBalance.toString());
+      assert.equal(vaultBalance.toString(), "1000000");
+})
 });
