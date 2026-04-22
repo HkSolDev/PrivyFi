@@ -1,0 +1,28 @@
+{
+  "name": "privyfi",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.28.2",
+  "devDependencies": {
+    "@coral-xyz/anchor": "^0.32.1",
+    "@solana/spl-token": "^0.4.14",
+    "@types/bn.js": "^5.2.0",
+    "@types/chai": "^5.2.3",
+    "anchor-bankrun": "^0.5.0",
+    "chai": "^6.2.2",
+    "solana-bankrun": "^0.4.0",
+    "ts-mocha": "^11.1.0",
+    "typescript": "^6.0.3"
+  },
+  "dependencies": {
+    "@anchor-lang/core": "^1.0.1",
+    "@solana/web3.js": "^1.98.4"
+  }
+}

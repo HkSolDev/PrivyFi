@@ -1,21 +1,21 @@
+use crate::state::{UserProfile, UserReward};
 use anchor_lang::prelude::*;
-use crate::{state::{UserProfile, UserReward}};
 
 #[derive(Accounts)]
 /// In this create the user_profile and the user_reward State for the user.
 pub struct InitializeUser<'info> {
-/// The user have to be the signer and his key used to create the pda
-#[account(mut)]
-pub signer: Signer<'info>,
-/// The user profile account is created with the help of the signer key and the name of the user
-#[account(init, payer = signer, space = UserProfile::INIT_SPACE, seeds = [b"profile",signer.key().as_ref()],bump)]
-pub user_profile: Account<'info, UserProfile>,
+    /// The user have to be the signer and his key used to create the pda
+    #[account(mut)]
+    pub signer: Signer<'info>,
+    /// The user profile account is created with the help of the signer key and the name of the user
+    #[account(init, payer = signer, space = 8 + UserProfile::INIT_SPACE, seeds = [b"profile",signer.key().as_ref()],bump)]
+    pub user_profile: Account<'info, UserProfile>,
 
-/// Create the userReward Pda this will show all collectively all the reward earn by the user
-#[account(init, payer = signer, space = UserReward::INIT_SPACE, seeds = [b"reward",signer.key().as_ref()], bump)]
-pub user_reward: Account<'info, UserReward>,
+    /// Create the userReward Pda this will show all collectively all the reward earn by the user
+    #[account(init, payer = signer, space = 8 + UserReward::INIT_SPACE, seeds = [b"reward",signer.key().as_ref()], bump)]
+    pub user_reward: Account<'info, UserReward>,
 
-pub system_program: Program<'info, System>
+    pub system_program: Program<'info, System>,
 }
 
 pub fn create_user(ctx: Context<InitializeUser>) -> Result<()> {
@@ -34,4 +34,3 @@ pub fn create_user(ctx: Context<InitializeUser>) -> Result<()> {
     user_reward.bump = ctx.bumps.user_reward;
     Ok(())
 }
-

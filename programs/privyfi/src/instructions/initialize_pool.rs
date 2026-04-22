@@ -1,16 +1,16 @@
-use anchor_lang::prelude::*;
 use crate::state::MockPool;
+use anchor_lang::prelude::*;
 use anchor_spl::associated_token::AssociatedToken;
-use anchor_spl::token_interface::{Mint, TokenInterface, TokenAccount};
+use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 
 #[derive(Accounts)]
 #[instruction(name: String)]
 pub struct InitializePool<'info> {
-    #[account(mut)]   
+    #[account(mut)]
     pub signer: Signer<'info>,
 
     #[account(
-        init,
+        init_if_needed,
         payer = signer,
         space = 8 + MockPool::INIT_SPACE,
         seeds = [b"pool", name.as_bytes()],
@@ -31,12 +31,11 @@ pub struct InitializePool<'info> {
 
     pub token_program: Interface<'info, TokenInterface>,
     pub associated_token_program: Program<'info, AssociatedToken>,
-    pub system_program: Program<'info, System>
+    pub system_program: Program<'info, System>,
 }
-//todo! fix the bump issue 
-pub fn handler(ctx: Context<InitializePool>, name: String, apy_bps: u64) -> Result<()> {
+
+pub fn create_pool(ctx: Context<InitializePool>, name: String, apy_bps: u64) -> Result<()> {
     let pool = &mut ctx.accounts.pool;
-    pool.admin = ctx.accounts.signer.key();
     pool.mint_token = ctx.accounts.mint_token.key();
     pool.supply_vault = ctx.accounts.supply_vault.key();
     pool.vault_name = name;

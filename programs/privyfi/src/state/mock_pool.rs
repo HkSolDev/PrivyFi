@@ -3,7 +3,6 @@ use anchor_lang::prelude::*;
 #[derive(InitSpace)]
 #[account]
 pub struct MockPool {
-    pub admin: Pubkey,
     pub mint_token: Pubkey,
     pub supply_vault: Pubkey,
     #[max_len(50)]
@@ -13,4 +12,3 @@ pub struct MockPool {
     pub total_reward: u64,
     pub bump: u8,
 }
-

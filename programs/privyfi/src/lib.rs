@@ -14,15 +14,13 @@ pub mod privyfi {
     use super::*;
 
     pub fn initialize_user(ctx: Context<InitializeUser>) -> Result<()> {
-    create_user(ctx)?;
+        create_user(ctx)?;
         Ok(())
-    
-    
-}
+    }
 
-    // pub fn initialize_pool(ctx: Context<InitializePool>, name: String, apy_bps: u64) -> Result<()> {
-    //     instructions::initialize_pool::handler(ctx, name, apy_bps)
-    // }
+    pub fn initialize_pool(ctx: Context<InitializePool>, name: String, apy_bps: u64) -> Result<()> {
+        create_pool(ctx, name, apy_bps)
+    }
 
     // pub fn deposit(ctx: Context<Deposit>, amount: u64) -> Result<()> {
     //     instructions::deposit::handler(ctx, amount)

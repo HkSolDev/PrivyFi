@@ -142,6 +142,9 @@ solana airdrop 2
 # Build Anchor program
 anchor build
 
+# Test the program
+anchor test
+
 # Deploy to devnet
 anchor deploy
 
