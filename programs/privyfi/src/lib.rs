@@ -26,9 +26,9 @@ pub mod privyfi {
         deposit_handler(ctx, amount)
     }
 
-    // pub fn withdraw(ctx: Context<Withdraw>) -> Result<()> {
-    //     instructions::withdraw::handler(ctx)
-    // }
+    pub fn withdraw(ctx: Context<Withdraw>, amount: u64) -> Result<()> {
+        withdraw_handler(ctx, amount)
+    }
 
     // pub fn toggle_private(ctx: Context<TogglePrivate>) -> Result<()> {
     //     instructions::toggle_private::handler(ctx)
