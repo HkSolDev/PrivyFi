@@ -13,6 +13,7 @@ describe("privyfi", () => {
     // User who came to Privy
     let user: Keypair;
     let userProfilePda: PublicKey;
+    let userPositionPda: PublicKey;
     let userRewardPda: PublicKey;
     let poolPda: PublicKey;
     let provider: BankrunProvider;
@@ -109,6 +110,11 @@ describe("privyfi", () => {
 it("deposite", async() => {
    const supplyVault = getAssociatedTokenAddressSync(mintToken.publicKey, poolPda, true);
 
+userPositionPda = await PublicKey.findProgramAddressSync(
+    [Buffer.from("position"), user.publicKey.toBuffer() , poolPda.toBuffer()],
+    PROGRAM_ID
+)[0];
+
    // Derive the user's Associated Token Account (ATA) address
    const userAta = getAssociatedTokenAddressSync(mintToken.publicKey, user.publicKey);
 
@@ -127,6 +133,7 @@ it("deposite", async() => {
       .accounts({
         user: user.publicKey,
         pool: poolPda,
+        userProfile: userProfilePda,
         mintToken: mintToken.publicKey,
         poolVault: supplyVault,
         tokenProgram: TOKEN_PROGRAM_ID,
@@ -139,5 +146,24 @@ it("deposite", async() => {
       const vaultBalance = Buffer.from(vaultAccountInfo.data).readBigUInt64LE(64);
       console.log("Supply Vault Balance: ", vaultBalance.toString());
       assert.equal(vaultBalance.toString(), "1000000");
+
+      let userPositionAcc = await program.account.userPosition.fetch(userPositionPda);
+      console.log("User Position Account: ", userPositionAcc);
+      assert.equal(userPositionAcc.amount.toString(), "1000000");
+      assert.equal(userPositionAcc.owner.toString(), user.publicKey.toString());
+      assert.equal(userPositionAcc.pool.toString(), poolPda.toString());
+
+      let userProfileAcc = await program.account.userProfile.fetch(userProfilePda);
+      console.log("User Profile Account: ", userProfileAcc);
+      assert.equal(userProfileAcc.totalStaked.toString(), "1000000");
 })
+
+  // ─── TODO (Morning): Write the Withdraw Test ────────────────────────────
+  // Plan:
+  //   1. Arrange — deposit test above already put 1_000_000 tokens in the vault
+  //   2. Act    — call program.methods.withdraw(new anchor.BN(500_000))
+  //               .accounts({ user, userProfile, pool, mintToken, userToken, poolVault, tokenProgram })
+  //   3. Assert — vault balance drops to 500_000
+  //             — pool.totalStaked drops to 500_000
+  // ────────────────────────────────────────────────────────────────────────
 });

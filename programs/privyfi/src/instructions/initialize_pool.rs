@@ -41,7 +41,6 @@ pub fn create_pool(ctx: Context<InitializePool>, name: String, apy_bps: u64) -> 
     pool.vault_name = name;
     pool.apy_bps = apy_bps;
     pool.total_staked = 0;
-    pool.total_reward = 0;
     pool.bump = ctx.bumps.pool;
     Ok(())
 }

@@ -9,6 +9,5 @@ pub struct MockPool {
     pub vault_name: String,
     pub apy_bps: u64,
     pub total_staked: u64,
-    pub total_reward: u64,
     pub bump: u8,
 }

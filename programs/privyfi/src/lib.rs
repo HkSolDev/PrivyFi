@@ -4,6 +4,7 @@ pub mod state;
 
 use anchor_lang::prelude::*;
 
+pub use errors::*;
 pub use instructions::*;
 pub use state::*;
 
