@@ -1,12 +1,12 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Keypair, PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
-import { BankrunProvider, startAnchor } from "anchor-bankrun";
+import { fromWorkspace, LiteSVMProvider } from "anchor-litesvm";
 import IDL from "../target/idl/privyfi.json" with { type: "json" };
 import { MINT_SIZE, TOKEN_PROGRAM_ID, createInitializeMint2Instruction, getAssociatedTokenAddressSync, createMintToInstruction, createAssociatedTokenAccountInstruction } from "@solana/spl-token";
 
 import type { Privyfi } from "../target/types/privyfi";
 import { assert } from "chai";
-
+import { getAccount } from "@solana/spl-token";
 const PROGRAM_ID = new PublicKey(IDL.address);
 
 describe("privyfi", () => {
@@ -16,17 +16,18 @@ describe("privyfi", () => {
     let userPositionPda: PublicKey;
     let userRewardPda: PublicKey;
     let poolPda: PublicKey;
-    let provider: BankrunProvider;
+    let provider: LiteSVMProvider;
+    let client: ReturnType<typeof fromWorkspace>;
     let program: anchor.Program<Privyfi>;
     let mintToken: Keypair;
     let rent_exemption_account : Keypair;
 
     before(async () => {
-        const context = await startAnchor("", [], []);
-        provider = new BankrunProvider(context);
+        client = fromWorkspace(".");
+        provider = new LiteSVMProvider(client);
         program = new anchor.Program<Privyfi>(IDL as any, provider);
-        const client = context.banksClient;
-        user = context.payer; // Use the pre-funded Bankrun payer!
+        user = Keypair.generate();
+        client.airdrop(user.publicKey, BigInt(10_000_000_000)); // Fund the user with 10 SOL
         mintToken = new Keypair();
         const rent = 10000000; // hardcode safe rent amount for mint
 
@@ -40,13 +41,13 @@ describe("privyfi", () => {
             });
           const inx2 = createInitializeMint2Instruction(mintToken.publicKey, 6, user.publicKey, null);
 
-   /// Get the latest blockhash for the tx 
-     const [latestBlockhash] = await client.getLatestBlockhash();
+   /// Get the latest blockhash for the tx — LiteSVM controls this internally
+     const blockhash = client.latestBlockhash();
      const tx = new Transaction().add(inx1, inx2);
-     tx.recentBlockhash = latestBlockhash;
+     tx.recentBlockhash = blockhash;
      tx.feePayer = user.publicKey;
      tx.sign(user, mintToken);
-     await client.processTransaction(tx); 
+     client.sendTransaction(tx);
 
         
         userProfilePda = PublicKey.findProgramAddressSync(
@@ -71,6 +72,7 @@ describe("privyfi", () => {
         .accounts({
             signer: user.publicKey,
         })
+        .signers([user])
         .rpc();
 
     let userProfileAcc = await program.account.userProfile.fetch(userProfilePda);
@@ -119,15 +121,15 @@ userPositionPda = await PublicKey.findProgramAddressSync(
    const userAta = getAssociatedTokenAddressSync(mintToken.publicKey, user.publicKey);
 
    // Build transaction: create the ATA + mint 2_000_000 tokens into it
-   const [latestBlockhash2] = await (provider.context.banksClient as any).getLatestBlockhash();
+   const bh2 = client.latestBlockhash();
    const mintTx = new Transaction().add(
      createAssociatedTokenAccountInstruction(user.publicKey, userAta, user.publicKey, mintToken.publicKey),
      createMintToInstruction(mintToken.publicKey, userAta, user.publicKey, 2_000_000)
    );
-   mintTx.recentBlockhash = latestBlockhash2;
+   mintTx.recentBlockhash = bh2;
    mintTx.feePayer = user.publicKey;
    mintTx.sign(user);
-   await (provider.context.banksClient as any).processTransaction(mintTx);
+   client.sendTransaction(mintTx);
 
     await program.methods.deposit(new anchor.BN(1000000))
       .accounts({
@@ -141,11 +143,10 @@ userPositionPda = await PublicKey.findProgramAddressSync(
       .signers([user])
       .rpc()
 
-      let vaultAccountInfo = await (provider.context.banksClient as any).getAccount(supplyVault);
-      // SPL Token account layout: bytes 64-72 hold the token amount (u64, little-endian)
-      const vaultBalance = Buffer.from(vaultAccountInfo.data).readBigUInt64LE(64);
-      console.log("Supply Vault Balance: ", vaultBalance.toString());
-      assert.equal(vaultBalance.toString(), "1000000");
+      // Use SPL token getAccount() instead of raw bytes — clean and readable
+      const vaultTokenAccount = await getAccount(provider.connection, supplyVault);
+      console.log("Supply Vault Balance: ", vaultTokenAccount.amount.toString());
+      assert.equal(vaultTokenAccount.amount.toString(), "1000000");
 
       let userPositionAcc = await program.account.userPosition.fetch(userPositionPda);
       console.log("User Position Account: ", userPositionAcc);
@@ -165,5 +166,7 @@ userPositionPda = await PublicKey.findProgramAddressSync(
   //               .accounts({ user, userProfile, pool, mintToken, userToken, poolVault, tokenProgram })
   //   3. Assert — vault balance drops to 500_000
   //             — pool.totalStaked drops to 500_000
+
   // ────────────────────────────────────────────────────────────────────────
+//
 });
