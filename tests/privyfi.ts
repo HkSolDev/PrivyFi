@@ -129,7 +129,7 @@ userPositionPda = await PublicKey.findProgramAddressSync(
    mintTx.recentBlockhash = bh2;
    mintTx.feePayer = user.publicKey;
    mintTx.sign(user);
-   client.sendTransaction(mintTx);
+   client.sendTransaction(mintTx);  
 
     await program.methods.deposit(new anchor.BN(1000000))
       .accounts({
@@ -168,5 +168,53 @@ userPositionPda = await PublicKey.findProgramAddressSync(
   //             — pool.totalStaked drops to 500_000
 
   // ────────────────────────────────────────────────────────────────────────
-//
+it("withdraw", async() => {
+   const supplyVault = getAssociatedTokenAddressSync(mintToken.publicKey, poolPda, true);
+
+userPositionPda = await PublicKey.findProgramAddressSync(
+    [Buffer.from("position"), user.publicKey.toBuffer() , poolPda.toBuffer()],
+    PROGRAM_ID
+)[0];
+
+
+   const userAta = getAssociatedTokenAddressSync(mintToken.publicKey, user.publicKey);
+
+   const bh2  = client.latestBlockhash();
+   const mintTx = new Transaction().add(
+     createAssociatedTokenAccountInstruction(user.publicKey, userAta, user.publicKey, mintToken.publicKey),
+     createMintToInstruction(mintToken.publicKey, userAta, user.publicKey, 2_000_000)
+   );
+   mintTx.recentBlockhash = bh2;
+   mintTx.feePayer = user.publicKey;
+   mintTx.sign(user);
+   client.sendTransaction(mintTx);  
+
+   await program.methods.withdraw(new anchor.BN(500_000))
+     .accounts({
+       user: user.publicKey,
+       userProfile: userProfilePda,
+       userPosition: userPositionPda,
+       pool: poolPda,
+       mintToken: mintToken.publicKey,
+       userToken: userAta,
+       poolVault: supplyVault,
+       tokenProgram: TOKEN_PROGRAM_ID,
+     })
+     .signers([user])
+     .rpc();
+
+     const vaultTokenAccount = await getAccount(provider.connection, supplyVault);
+      console.log("Supply Vault Balance: ", vaultTokenAccount.amount.toString());
+      assert.equal(vaultTokenAccount.amount.toString(), "500000");
+
+      let userPositionAcc = await program.account.userPosition.fetch(userPositionPda);
+      console.log("User Position Account: ", userPositionAcc);
+      assert.equal(userPositionAcc.amount.toString(), "500000");
+      assert.equal(userPositionAcc.owner.toString(), user.publicKey.toString());
+      assert.equal(userPositionAcc.pool.toString(), poolPda.toString());
+
+      let userProfileAcc = await program.account.userProfile.fetch(userProfilePda);
+      console.log("User Profile Account: ", userProfileAcc);
+      assert.equal(userProfileAcc.totalStaked.toString(), "500000");
+})  
 });
