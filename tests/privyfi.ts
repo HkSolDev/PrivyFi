@@ -217,4 +217,39 @@ userPositionPda = await PublicKey.findProgramAddressSync(
       console.log("User Profile Account: ", userProfileAcc);
       assert.equal(userProfileAcc.totalStaked.toString(), "500000");
 })  
+it("Over-withdraw", async() => {
+   const supplyVault = getAssociatedTokenAddressSync(mintToken.publicKey, poolPda, true);
+   const userAta = getAssociatedTokenAddressSync(mintToken.publicKey, user.publicKey);
+
+   try {
+     // This should fail because the vault only has 500k left after the first withdraw
+     await program.methods.withdraw(new anchor.BN(600_000))
+       .accounts({
+         user: user.publicKey,
+         userProfile: userProfilePda,
+         userPosition: userPositionPda,
+         pool: poolPda,
+         mintToken: mintToken.publicKey,
+         userToken: userAta,
+         poolVault: supplyVault,
+         tokenProgram: TOKEN_PROGRAM_ID,
+       })
+       .signers([user])
+       .rpc();
+     assert.fail("Should have failed with InsufficientBalance");
+   } catch (e: any) {
+     // Check logs or message for the expected error
+     const logs = e.logs || (e.error ? e.error.logs : []);
+     const combinedMessage = e.message + (logs ? logs.join("") : "");
+     assert.include(combinedMessage, "InsufficientBalance");
+   }
+  
+   // PROOF OF ATOMICITY:
+   // The account must still exist and the balance must be unchanged (500k)
+   let userPositionAcc = await program.account.userPosition.fetch(userPositionPda);
+   assert.equal(userPositionAcc.amount.toString(), "500000");
+
+   let userProfileAcc = await program.account.userProfile.fetch(userProfilePda);
+   assert.equal(userProfileAcc.totalStaked.toString(), "500000");
+})  
 });
