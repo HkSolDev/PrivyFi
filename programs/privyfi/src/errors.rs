@@ -7,5 +7,5 @@ pub enum PrivyFiError {
     #[msg("Insufficient balance")]
     InsufficientBalance,
     #[msg("Arithmetic overflow — amount too large")]
-    Overflow
+    Overflow,
 }

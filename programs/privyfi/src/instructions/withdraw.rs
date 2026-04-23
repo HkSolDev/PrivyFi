@@ -3,8 +3,8 @@ use anchor_lang::prelude::*;
 use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token_interface::{self, Mint, TokenAccount, TokenInterface, TransferChecked};
 
-use crate::{PrivyFiError, user_position};
-use crate::state::{MockPool, UserProfile,UserPosition};
+use crate::state::{MockPool, UserPosition, UserProfile};
+use crate::{user_position, PrivyFiError};
 
 #[derive(Accounts)]
 pub struct Withdraw<'info> {
@@ -15,7 +15,7 @@ pub struct Withdraw<'info> {
     #[account(mut,seeds=[b"profile", user.key().as_ref()], bump = user_profile.bump)]
     pub user_profile: Account<'info, UserProfile>,
 
-    //need to debit from the global pda for the user 
+    //need to debit from the global pda for the user
     #[account(mut, seeds = [b"position", user.key().as_ref(), pool.key().as_ref()], bump = user_position.bump)]
     pub user_position: Account<'info, UserPosition>,
 
@@ -42,11 +42,19 @@ pub struct Withdraw<'info> {
 pub fn withdraw_handler(ctx: Context<Withdraw>, amount: u64) -> Result<()> {
     let user_position = &mut ctx.accounts.user_position;
 
-// The withdraw amount cant be 0
+    let pool_vault = &ctx.accounts.pool_vault;
+
+    // The withdraw amount cant be 0
     require_gt!(amount, 0, PrivyFiError::InvalidAmount);
 
+    require_gte!(pool_vault.amount, amount, PrivyFiError::InsufficientBalance);
+
     // Guard: user cannot withdraw more than they deposited
-    require_gte!(user_position.amount,amount, PrivyFiError::InsufficientBalance);
+    require_gte!(
+        user_position.amount,
+        amount,
+        PrivyFiError::InsufficientBalance
+    );
     let decimals = ctx.accounts.mint_token.decimals;
 
     let cpi_accounts = TransferChecked {
@@ -72,30 +80,31 @@ pub fn withdraw_handler(ctx: Context<Withdraw>, amount: u64) -> Result<()> {
         .checked_sub(amount)
         .ok_or(PrivyFiError::Overflow)?;
 
-let user_position = &mut ctx.accounts.user_position;
-user_position.amount = user_position.amount.checked_sub(amount).ok_or(PrivyFiError::Overflow)?;
+    let user_position = &mut ctx.accounts.user_position;
+    user_position.amount = user_position
+        .amount
+        .checked_sub(amount)
+        .ok_or(PrivyFiError::Overflow)?;
 
-// Subtract form the user global profile in own program
+    // Subtract form the user global profile in own program
     let user_profile = &mut ctx.accounts.user_profile;
     user_profile.total_staked = user_profile
         .total_staked
         .checked_sub(amount)
         .ok_or(PrivyFiError::Overflow)?;
 
+    // close the user_position when the staked_amount become zero
 
+    if user_position.amount == 0 {
+        let user_position_acc = user_position.to_account_info();
+        let user_acc = ctx.accounts.user.to_account_info();
 
-// close the user_position when the staked_amount become zero
+        let lamport = user_position_acc.lamports();
+        **user_position_acc.try_borrow_mut_lamports()? -= lamport;
+        **user_acc.try_borrow_mut_lamports()? += lamport; //why deference two time
 
-if user_position.amount == 0 {
-    let user_position_acc = user_position.to_account_info();
-    let user_acc = ctx.accounts.user.to_account_info();
-
-    let lamport = user_position_acc.lamports();
-    **user_position_acc.try_borrow_mut_lamports()? -= lamport;
-    **user_acc.try_borrow_mut_lamports()? += lamport; //why deference two time
-
-    user_position_acc.data.borrow_mut().fill(0);
-}
+        user_position_acc.data.borrow_mut().fill(0);
+    }
 
     Ok(())
 }

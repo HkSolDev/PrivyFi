@@ -2,8 +2,8 @@ use anchor_lang::prelude::*;
 use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token_interface::{self, Mint, TokenAccount, TokenInterface, TransferChecked};
 
-use crate::state::{MockPool, UserPosition, UserProfile};
 use crate::errors::PrivyFiError;
+use crate::state::{MockPool, UserPosition, UserProfile};
 
 #[derive(Accounts)]
 pub struct Deposit<'info> {
