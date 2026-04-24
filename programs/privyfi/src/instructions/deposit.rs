@@ -2,8 +2,9 @@ use anchor_lang::prelude::*;
 use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token_interface::{self, Mint, TokenAccount, TokenInterface, TransferChecked};
 
+
 use crate::errors::PrivyFiError;
-use crate::state::{MockPool, UserPosition, UserProfile};
+use crate::state::{MockPool, UserPosition, UserProfile, UserReward};
 
 #[derive(Accounts)]
 pub struct Deposit<'info> {
@@ -36,6 +37,10 @@ pub struct Deposit<'info> {
         associated_token::token_program = token_program,
     )]
     pub user_token: InterfaceAccount<'info, TokenAccount>,
+
+    #[account(mut, seeds=[b"reward",user.key().as_ref()], bump = user_reward.bump ,constraint = user_reward.owner == user.key() )]
+    pub user_reward: Account<'info, UserReward>,
+
 
     #[account(mut, address = pool.supply_vault)]
     pub pool_vault: InterfaceAccount<'info, TokenAccount>,
@@ -86,6 +91,10 @@ pub fn deposit_handler(ctx: Context<Deposit>, amount: u64) -> Result<()> {
         .total_staked
         .checked_add(amount)
         .ok_or(PrivyFiError::Overflow)?;
+
+
+  // Inside deposit_handler:
+ctx.accounts.user_reward.add_point(amount)?;
 
     Ok(())
 }

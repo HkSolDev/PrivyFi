@@ -35,7 +35,7 @@ pub mod privyfi {
     //     instructions::toggle_private::handler(ctx)
     // }
 
-    // pub fn record_action(ctx: Context<RecordAction>) -> Result<()> {
-    //     instructions::record_action::handler(ctx)
-    // }
+    pub fn record_action(ctx: Context<RecordAction>, amount: u64) -> Result<()> {
+        reward_handler(ctx, amount)
+    }
 }
