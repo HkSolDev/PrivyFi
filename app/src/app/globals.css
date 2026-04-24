@@ -1,0 +1,116 @@
+@import "tailwindcss";
+
+:root {
+  --background: #0d0d12;
+  --foreground: #ffffff;
+  --primary: #8b5cf6;
+  --primary-hover: #7c3aed;
+  --secondary: #06b6d4;
+  --accent: #f472b6;
+  --card-bg: rgba(23, 23, 33, 0.6);
+  --card-border: rgba(255, 255, 255, 0.08);
+  --neon-blue: #00f2ff;
+  --neon-purple: #bc13fe;
+}
+
+@theme {
+  --color-primary: var(--primary);
+  --color-secondary: var(--secondary);
+  --color-background: var(--background);
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  overflow-x: hidden;
+}
+
+/* Immersive Purple Nebula Background */
+body::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: 
+    radial-gradient(circle at 0% 0%, rgba(139, 92, 246, 0.15) 0%, transparent 50%),
+    radial-gradient(circle at 100% 0%, rgba(188, 19, 254, 0.1) 0%, transparent 40%),
+    radial-gradient(circle at 100% 100%, rgba(6, 182, 212, 0.15) 0%, transparent 50%),
+    radial-gradient(circle at 0% 100%, rgba(244, 114, 182, 0.1) 0%, transparent 40%),
+    linear-gradient(180deg, #0d0d12 0%, #15151e 100%);
+  pointer-events: none;
+  z-index: -1;
+}
+
+@layer components {
+  .glass-card {
+    background: rgba(28, 28, 45, 0.4);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 28px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .glass-card::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, transparent 100%);
+    pointer-events: none;
+  }
+
+  /* The Purple Glow Effect from the Image */
+  .purple-glow {
+    position: relative;
+  }
+
+  .purple-glow::before {
+    content: "";
+    position: absolute;
+    bottom: -20px;
+    left: 20px;
+    right: 20px;
+    height: 60px;
+    background: rgba(188, 19, 254, 0.3);
+    filter: blur(40px);
+    border-radius: 100%;
+    z-index: -1;
+    pointer-events: none;
+  }
+
+  .gradient-text {
+    background: linear-gradient(135deg, #00f2ff, #bc13fe);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .sidebar-active {
+    background: linear-gradient(90deg, rgba(139, 92, 246, 0.2) 0%, transparent 100%);
+    border-left: 3px solid #8b5cf6;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--primary);
+}
