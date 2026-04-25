@@ -10,19 +10,47 @@ import {
   ShieldCheck, 
   MessageSquare,
   ArrowUpRight,
-  TrendingDown
+  Settings,
+  Bell,
+  User,
+  Send
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
+
+// Import Views
+import DashboardView from '@/components/views/DashboardView';
+import PortfolioView from '@/components/views/PortfolioView';
+import YieldView from '@/components/views/YieldView';
+
+type ViewType = 'dashboard' | 'portfolio' | 'yield' | 'vaults' | 'privacy' | 'settings';
 
 export default function Home() {
   const { connected } = useWallet();
   const [isMounted, setIsMounted] = useState(false);
+  const [activeTab, setActiveTab] = useState<ViewType>('dashboard');
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
   if (!isMounted) return null;
+
+  const renderView = () => {
+    switch (activeTab) {
+      case 'dashboard':
+        return <DashboardView />;
+      case 'portfolio':
+        return <PortfolioView />;
+      case 'yield':
+        return <YieldView />;
+      default:
+        return (
+          <div className="flex items-center justify-center h-[50vh] text-gray-500 italic">
+            {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} view coming soon...
+          </div>
+        );
+    }
+  };
 
   return (
     <div className="flex min-h-screen relative overflow-hidden">
@@ -36,11 +64,42 @@ export default function Home() {
         </div>
 
         <nav className="flex flex-col gap-2">
-          <NavItem icon={<LayoutDashboard size={20} />} label="Dashboard" active />
-          <NavItem icon={<Wallet size={20} />} label="Portfolio" />
-          <NavItem icon={<TrendingUp size={20} />} label="Yield" />
-          <NavItem icon={<Lock size={20} />} label="Vaults" />
-          <NavItem icon={<ShieldCheck size={20} />} label="Privacy" />
+          <NavItem 
+            icon={<LayoutDashboard size={20} />} 
+            label="Dashboard" 
+            active={activeTab === 'dashboard'} 
+            onClick={() => setActiveTab('dashboard')}
+          />
+          <NavItem 
+            icon={<Wallet size={20} />} 
+            label="Portfolio" 
+            active={activeTab === 'portfolio'} 
+            onClick={() => setActiveTab('portfolio')}
+          />
+          <NavItem 
+            icon={<TrendingUp size={20} />} 
+            label="Yield" 
+            active={activeTab === 'yield'} 
+            onClick={() => setActiveTab('yield')}
+          />
+          <NavItem 
+            icon={<Lock size={20} />} 
+            label="Vaults" 
+            active={activeTab === 'vaults'} 
+            onClick={() => setActiveTab('vaults')}
+          />
+          <NavItem 
+            icon={<ShieldCheck size={20} />} 
+            label="Privacy" 
+            active={activeTab === 'privacy'} 
+            onClick={() => setActiveTab('privacy')}
+          />
+          <NavItem 
+            icon={<Settings size={20} />} 
+            label="Settings" 
+            active={activeTab === 'settings'} 
+            onClick={() => setActiveTab('settings')}
+          />
         </nav>
 
         <div className="mt-auto">
@@ -56,14 +115,22 @@ export default function Home() {
 
       {/* Main Content Area */}
       <main className="flex-1 flex flex-row overflow-hidden z-10">
-        {/* Left Side: Main Dashboard */}
+        {/* Left Side: Dynamic View */}
         <div className="flex-1 p-8 overflow-y-auto custom-scrollbar">
           <header className="flex justify-between items-center mb-10">
             <div>
-              <h1 className="text-3xl font-black tracking-tight mb-2">Welcome Back</h1>
+              <h1 className="text-3xl font-black tracking-tight mb-2">
+                {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}
+              </h1>
               <p className="text-gray-400">Optimize your yield with AI-powered insights.</p>
             </div>
-            <WalletMultiButton className="!h-12 !bg-white !text-black !rounded-xl !font-bold hover:!scale-105 transition-transform" />
+            <div className="flex items-center gap-4">
+              <button className="w-10 h-10 rounded-xl border border-white/10 flex items-center justify-center hover:bg-white/5 transition-colors relative">
+                <Bell size={18} className="text-gray-400" />
+                <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-purple-500 rounded-full border-2 border-[#0d0d12]"></span>
+              </button>
+              <WalletMultiButton className="!h-12 !bg-white !text-black !rounded-xl !font-bold hover:!scale-105 transition-transform" />
+            </div>
           </header>
 
           {!connected ? (
@@ -82,48 +149,7 @@ export default function Home() {
               </div>
             </div>
           ) : (
-            <div className="flex flex-col gap-8 fade-in">
-              {/* Stats Row */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <StatCard 
-                  label="Total Value Locked" 
-                  value="$4,578,120.34" 
-                  change="+9.23%" 
-                  trend="up"
-                  className="purple-glow"
-                />
-                <StatCard 
-                  label="Total Net Worth" 
-                  value="$1,234,567.89" 
-                  change="+4.50%" 
-                  trend="up"
-                />
-                <StatCard 
-                  label="Yield Strategies" 
-                  value="7 Active" 
-                  change="Stable" 
-                  trend="neutral"
-                />
-              </div>
-
-              {/* Chart Section */}
-              <div className="glass-card h-[350px] flex items-center justify-center purple-glow">
-                <p className="text-gray-500 italic font-medium">Portfolio Performance Chart Integration Coming Soon...</p>
-              </div>
-
-              {/* Yield Section */}
-              <div className="glass-card !p-8">
-                <div className="flex justify-between items-center mb-8">
-                  <h3 className="text-xl font-bold">Top Yield Opportunities</h3>
-                  <button className="text-sm text-purple-400 font-bold hover:underline tracking-tight">View All</button>
-                </div>
-                <div className="flex flex-col gap-4">
-                  <div className="text-center py-12 text-gray-500 border border-dashed border-white/10 rounded-2xl">
-                    Scanning Kamino and Jupiter for best APYs...
-                  </div>
-                </div>
-              </div>
-            </div>
+            renderView()
           )}
         </div>
 
@@ -141,7 +167,7 @@ export default function Home() {
           
           <div className="flex-1 flex flex-col gap-4 overflow-y-auto pr-2 custom-scrollbar">
             <div className="bg-white/5 border border-white/5 p-4 rounded-2xl rounded-bl-none text-sm text-gray-300 leading-relaxed">
-              "Connect your wallet to get personalized yield recommendations based on your holdings."
+              "Hi there! I'm your PrivyFi advisor. {connected ? "I'm ready to analyze your portfolio." : "Connect your wallet so I can analyze your holdings."}"
             </div>
           </div>
 
@@ -163,38 +189,18 @@ export default function Home() {
   );
 }
 
-function NavItem({ icon, label, active = false }: { icon: React.ReactNode, label: string, active?: boolean }) {
+function NavItem({ icon, label, active = false, onClick }: { icon: React.ReactNode, label: string, active?: boolean, onClick: () => void }) {
   return (
-    <div className={`flex items-center gap-3 p-3.5 rounded-xl cursor-pointer transition-all group ${
-      active 
-        ? 'bg-purple-500/10 text-white font-bold border border-purple-500/20 shadow-lg shadow-purple-500/5' 
-        : 'text-gray-400 hover:text-white hover:bg-white/5'
-    }`}>
+    <div 
+      onClick={onClick}
+      className={`flex items-center gap-3 p-3.5 rounded-xl cursor-pointer transition-all group ${
+        active 
+          ? 'sidebar-active text-white font-bold' 
+          : 'text-gray-400 hover:text-white hover:bg-white/5'
+      }`}
+    >
       <span className={`${active ? 'text-purple-400' : 'group-hover:text-purple-400 transition-colors'}`}>{icon}</span>
       <span className="text-sm">{label}</span>
-    </div>
-  );
-}
-
-function StatCard({ label, value, change, trend, className }: { 
-  label: string, 
-  value: string, 
-  change: string, 
-  trend: 'up' | 'down' | 'neutral',
-  className?: string 
-}) {
-  return (
-    <div className={`glass-card p-6 group hover:scale-[1.02] transition-all ${className}`}>
-      <div className="flex justify-between items-start mb-4">
-        <p className="text-xs text-gray-500 font-bold uppercase tracking-widest">{label}</p>
-        <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black ${
-          trend === 'up' ? 'bg-green-500/10 text-green-400' : trend === 'down' ? 'bg-red-500/10 text-red-400' : 'bg-gray-500/10 text-gray-400'
-        }`}>
-          {trend === 'up' ? <TrendingUp size={12} /> : trend === 'down' ? <TrendingDown size={12} /> : null}
-          {change}
-        </div>
-      </div>
-      <h3 className="text-2xl font-black tracking-tight">{value}</h3>
     </div>
   );
 }
