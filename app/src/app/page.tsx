@@ -23,6 +23,7 @@ import ReactMarkdown from 'react-markdown';
 import DashboardView from '@/components/views/DashboardView';
 import PortfolioView from '@/components/views/PortfolioView';
 import YieldView from '@/components/views/YieldView';
+import PrivacyView from '@/components/views/PrivacyView';
 
 // Import Hooks
 import { useAI } from '@/hooks/useAI';
@@ -66,6 +67,8 @@ export default function Home() {
         return <PortfolioView />;
       case 'yield':
         return <YieldView />;
+      case 'privacy':
+        return <PrivacyView />;
       default:
         return (
           <div className="flex items-center justify-center h-[50vh] text-gray-500 italic">

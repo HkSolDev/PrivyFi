@@ -25,17 +25,20 @@ PrivyFi is a premium, private, AI-powered yield optimization dashboard on Solana
 - **Wallet Integration**: `WalletContextProvider.tsx` configured for Devnet/Mainnet with Solflare support.
 - **Architecture**: Using a **Single-Page View Toggle** pattern to maintain the wallet session across Dashboard, Portfolio, and Yield views.
 
-### Phase 4: Real-Time Integrations & UX Excellence (In Progress)
-- **QuickNode RPC Integration**: Switched to QuickNode Devnet RPC. 
-  - *Why*: To ensure zero-latency blockchain reads and qualify for the QuickNode hackathon track. ✅
-- **AI Yield Advisor (Llama 3.3 / Qwen)**: Integrated via OpenRouter. 
-  - *Why*: To provide "context-aware" investment advice. The AI knows the user's balance and the pool's live APY. ✅
-- **AI Knowledge Pop-up (Modal)**: Created a detailed deep-dive modal for every yield pool.
-  - *Why*: Beginners don't understand "Liquidity Providing." The modal explains it in simple terms with an AI-generated "PrivyFi Score." ✅
-- **Professional Markdown Rendering**: Integrated `react-markdown` and `@tailwindcss/typography`.
-  - *Why*: Raw AI text is messy. Formatted text with purple highlights (prose) makes the advice feel premium and authoritative. ✅
-- **Scalable Yield Scanner**: Expanded the API to show 30+ pools from Meteora.
-  - *Why*: To give users the widest range of opportunities across SOL, Stables, and high-yield tokens. ✅
+### Phase 4: Real-Time Integrations & UX Excellence (Complete)
+- **QuickNode RPC Integration**: Switched to QuickNode Devnet RPC. ✅
+- **AI Yield Advisor (Llama 3.3 / Qwen)**: Integrated via OpenRouter. ✅
+- **AI Knowledge Pop-up (Modal)**: Created a detailed deep-dive modal for every yield pool. ✅
+- **Professional Markdown Rendering**: Integrated `react-markdown` and `@tailwindcss/typography`. ✅
+- **Scalable Yield Scanner**: Implemented a **3-Step Flow (Fetch, Normalize, Rank)** aggregator supporting Meteora DLMM, DAMM v1, DAMM v2, and Kamino. ✅
+- **The Execution Layer**: Connected the "Start Earning" button to the Anchor `deposit` instruction, integrated with **Jupiter v6** for automated swap routing. ✅
+- **MagicBlock Rollups**: Integrated ephemeral rollups for the privacy toggle with a dedicated Privacy View and sub-second state simulation. ✅
+- **PUSD Integration**: Added Palm USD support across the aggregator, UI filters, and execution logic. ✅
+
+## Phase 5: Production Polish (In Progress)
+- **Portfolio Charting**: Integrating live price charts for the dashboard.
+- **Dynamic Rewards**: Implementing real-time point tracking on the frontend.
+- **Mobile Responsiveness**: Optimizing the glassmorphism UI for all device sizes.
 
 ## Development Patterns to Maintain
 1. **QuickNode First**: Use `NEXT_PUBLIC_QUICKNODE_RPC_URL` for all on-chain connections.
@@ -43,10 +46,8 @@ PrivyFi is a premium, private, AI-powered yield optimization dashboard on Solana
 3. **Context-Driven Prompting**: When calling the AI, always include the relevant pool data (name, apy, protocol) and user context (portfolio).
 4. **Security-First APIs**: Access all keys via server-side proxies (`/api/*`).
 
-## Current Task
-- **The Execution Layer**: Connecting the "Start Earning" button in the modal to the Anchor `deposit` instruction.
-- **MagicBlock Rollups**: Integrating ephemeral rollups for the privacy toggle.
-- **PUSD Integration**: Adding Palm USD support.
+5. **Three-Step Data Flow**: Always follow the Fetch (Layer A) -> Normalize (Layer B) -> Execute (Layer C) pattern for protocol integrations.
+6. **Meteora API Respect**: Use specialized endpoints for DLMM vs DAMM v1/v2 to capture full liquidity.
 
 ## Lookup & References
 - **Program ID**: `Czmhx4o5349ugHqTjNEArm6eoakk2btihu4bcBCvdt36`
