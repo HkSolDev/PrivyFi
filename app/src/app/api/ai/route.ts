@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(req: NextRequest) {
   try {
-    const { messages, portfolio } = await req.json();
+    const { messages, portfolio, staked, strategies } = await req.json();
 
     if (!messages || !Array.isArray(messages)) {
       return NextResponse.json({ error: 'Messages are required' }, { status: 400 });
@@ -15,8 +15,16 @@ export async function POST(req: NextRequest) {
 
     // Construct the System Prompt with Portfolio Context
     const portfolioContext = portfolio 
-      ? `The user's current Solana portfolio: ${JSON.stringify(portfolio)}. `
+      ? `The user's current Solana portfolio (unstaked tokens): ${JSON.stringify(portfolio)}. `
       : "The user's portfolio is currently unknown or not connected. ";
+
+    const stakedContext = staked && staked.length > 0
+      ? `The user currently has these assets actively staked/deposited in the PrivyFi Smart Contract: ${JSON.stringify(staked)}. Always acknowledge these staked positions if the user asks about their deposits or account info!`
+      : "The user currently has NO assets deposited in the PrivyFi smart contract.";
+
+    const yieldContext = strategies && strategies.length > 0
+      ? `Current live yield opportunities on Solana: ${JSON.stringify(strategies.slice(0, 10))}. `
+      : "No live yield data available. Reccomend top tier protocols like Kamino and Meteora based on general knowledge. ";
 
     const systemPrompt = {
       role: 'system',
@@ -28,7 +36,9 @@ export async function POST(req: NextRequest) {
       3. Focus on actionable data (APY, TVL, Strategy).
       4. Maintain a premium, professional tone.
       ${portfolioContext}
-      When recommending strategies, prioritize Kamino, Jupiter, and Meteora.
+      ${stakedContext}
+      ${yieldContext}
+      When recommending strategies, prioritize the live data provided above.
       Always remind the user to verify transactions.`
     };
 

@@ -9,22 +9,50 @@ import {
   Loader2
 } from 'lucide-react';
 import { usePortfolio } from '@/hooks/usePortfolio';
+import { useUserProfile } from '@/hooks/useUserProfile';
+import { useAnchorProgram } from '@/hooks/useAnchorProgram';
+import { useYield } from '@/hooks/useYield';
+import { useState, useEffect } from 'react';
+import PerformanceChart from '@/components/PerformanceChart';
+import YieldDetailsModal from '@/components/modals/YieldDetailsModal';
 
 export default function DashboardView() {
   const { data, loading } = usePortfolio();
+  const { profile } = useUserProfile();
+  const { strategies, loading: yieldLoading } = useYield();
+  const { getUserPositions, wallet } = useAnchorProgram();
+  const [stakedValue, setStakedValue] = useState(0);
+
+  const [selectedStrategy, setSelectedStrategy] = useState<any>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  useEffect(() => {
+    async function fetchStaked() {
+      if (wallet) {
+        const positions = await getUserPositions();
+        const total = positions.reduce((acc, curr) => acc + (curr.account.amount.toNumber() / 1_000_000), 0);
+        setStakedValue(total);
+      }
+    }
+    fetchStaked();
+  }, [wallet]);
+
+  const isPrivate = profile?.privateMode || false;
 
   const totalValue = data?.attributes?.total?.positions ? `$${data.attributes.total.positions.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '$0.00';
   const positionsCount = data?.attributes?.positions?.length || 0;
+
+  const topStrategies = strategies.slice(0, 3);
 
   return (
     <div className="flex flex-col gap-8 fade-in">
       {/* Stats Row */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <StatCard 
-          label="Total Value Locked" 
-          value="$0.00" 
-          change="---" 
-          trend="neutral"
+          label="Total Value Staked" 
+          value={`$${stakedValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}`} 
+          change="Live" 
+          trend="up"
           className="purple-glow"
         />
         <StatCard 
@@ -42,8 +70,20 @@ export default function DashboardView() {
       </div>
 
       {/* Chart Section */}
-      <div className="glass-card h-[350px] flex items-center justify-center purple-glow">
-        <p className="text-gray-500 italic font-medium">Portfolio Performance Chart Integration Coming Soon...</p>
+      <div className="glass-card h-[400px] !p-8 relative overflow-hidden purple-glow">
+        <div className="flex justify-between items-center mb-8 relative z-20">
+          <div>
+            <h3 className="text-xl font-bold">Portfolio Performance</h3>
+            <p className="text-xs text-gray-500 mt-1">Growth over the last 7 days</p>
+          </div>
+          <div className="flex gap-2">
+            <span className="px-3 py-1 bg-purple-500/10 text-purple-400 text-[10px] font-black rounded-lg border border-purple-500/20">Live</span>
+          </div>
+        </div>
+        <div className="h-[280px] w-full">
+          {/* Removing data={[]} so it uses the mock fallback data! */}
+          <PerformanceChart isPrivate={isPrivate} data={undefined as any} />
+        </div>
       </div>
 
       {/* Yield Section */}
@@ -53,11 +93,59 @@ export default function DashboardView() {
           <button className="text-sm text-purple-400 font-bold hover:underline tracking-tight">View All</button>
         </div>
         <div className="flex flex-col gap-4">
-          <div className="text-center py-12 text-gray-500 border border-dashed border-white/10 rounded-2xl">
-            Scanning Kamino and Jupiter for best APYs...
-          </div>
+          {yieldLoading ? (
+            <div className="text-center py-12 text-gray-500 border border-dashed border-white/10 rounded-2xl flex items-center justify-center gap-3">
+              <Loader2 className="animate-spin" size={20} />
+              Scanning Kamino and Jupiter for best APYs...
+            </div>
+          ) : topStrategies.length > 0 ? (
+            topStrategies.map((strat, i) => (
+              <div 
+                key={i} 
+                className="flex flex-col md:flex-row md:items-center justify-between p-6 bg-white/[0.02] hover:bg-white/[0.04] border border-white/5 rounded-2xl transition-all gap-4"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-purple-500/20 rounded-xl flex items-center justify-center shadow-lg shadow-purple-500/10 border border-purple-500/20">
+                    <TrendingUp size={24} className="text-purple-400" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-lg tracking-tight">{strat.name}</h4>
+                    <p className="text-xs text-gray-500 flex items-center gap-2">
+                      <span className="font-bold text-gray-400">{strat.protocol}</span> • 
+                      <span>TVL: {strat.tvl}</span>
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-6 justify-between md:justify-end border-t md:border-t-0 border-white/5 pt-4 md:pt-0">
+                  <div className="text-right">
+                    <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-1">Live APY</p>
+                    <p className="text-2xl font-black text-green-400">{strat.apy}</p>
+                  </div>
+                  <button 
+                    onClick={() => { setSelectedStrategy(strat); setIsModalOpen(true); }}
+                    className="px-6 py-3 bg-white text-black font-bold rounded-xl hover:scale-105 active:scale-95 transition-all text-sm shadow-xl"
+                  >
+                    Deposit
+                  </button>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="text-center py-12 text-gray-500 border border-dashed border-white/10 rounded-2xl">
+              No yield strategies found at the moment.
+            </div>
+          )}
         </div>
       </div>
+      
+      {selectedStrategy && (
+        <YieldDetailsModal 
+          strategy={selectedStrategy} 
+          isOpen={isModalOpen} 
+          onClose={() => setIsModalOpen(false)} 
+        />
+      )}
     </div>
   );
 }

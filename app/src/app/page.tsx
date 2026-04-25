@@ -14,7 +14,9 @@ import {
   Bell,
   User,
   Send,
-  Loader2
+  Loader2,
+  Menu,
+  X
 } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
@@ -27,6 +29,7 @@ import PrivacyView from '@/components/views/PrivacyView';
 
 // Import Hooks
 import { useAI } from '@/hooks/useAI';
+import { useRewards } from '@/hooks/useRewards';
 
 type ViewType = 'dashboard' | 'portfolio' | 'yield' | 'vaults' | 'privacy' | 'settings';
 
@@ -37,6 +40,7 @@ export default function Home() {
   const [input, setInput] = useState('');
   
   const { messages, sendMessage, loading: aiLoading } = useAI();
+  const { addPoints } = useRewards();
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -57,6 +61,8 @@ export default function Home() {
     const currentInput = input;
     setInput('');
     await sendMessage(currentInput);
+    // Add points for interacting with AI
+    await addPoints(10); 
   };
 
   const renderView = () => {
@@ -79,9 +85,9 @@ export default function Home() {
   };
 
   return (
-    <div className="flex min-h-screen relative overflow-hidden">
-      {/* Sidebar */}
-      <aside className="w-64 border-r border-white/5 p-6 flex flex-col gap-8 z-20 backdrop-blur-3xl bg-[#0d0d12]/40">
+    <div className="flex min-h-screen relative overflow-hidden bg-[#050508] text-white">
+      {/* Sidebar - Desktop Only */}
+      <aside className="hidden lg:flex w-64 border-r border-white/5 p-6 flex-col gap-8 z-20 backdrop-blur-3xl bg-[#0d0d12]/40">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-cyan-500 rounded-xl flex items-center justify-center font-bold text-xl shadow-lg shadow-purple-500/20">
             P
@@ -143,19 +149,24 @@ export default function Home() {
       <main className="flex-1 flex flex-row overflow-hidden z-10">
         {/* Left Side: Dynamic View */}
         <div className="flex-1 p-8 overflow-y-auto custom-scrollbar">
-          <header className="flex justify-between items-center mb-10">
-            <div>
-              <h1 className="text-3xl font-black tracking-tight mb-2">
-                {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}
-              </h1>
-              <p className="text-gray-400">Optimize your yield with AI-powered insights.</p>
-            </div>
+          <header className="flex justify-between items-center mb-6 md:mb-10">
             <div className="flex items-center gap-4">
-              <button className="w-10 h-10 rounded-xl border border-white/10 flex items-center justify-center hover:bg-white/5 transition-colors relative">
+              <div className="lg:hidden w-10 h-10 bg-gradient-to-br from-purple-500 to-cyan-500 rounded-xl flex items-center justify-center font-bold text-xl shadow-lg shadow-purple-500/20">
+                P
+              </div>
+              <div>
+                <h1 className="text-2xl md:text-3xl font-black tracking-tight mb-1 md:mb-2">
+                  {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}
+                </h1>
+                <p className="text-xs md:text-sm text-gray-400 hidden md:block">Optimize your yield with AI-powered insights.</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 md:gap-4">
+              <button className="hidden md:flex w-10 h-10 rounded-xl border border-white/10 items-center justify-center hover:bg-white/5 transition-colors relative">
                 <Bell size={18} className="text-gray-400" />
                 <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-purple-500 rounded-full border-2 border-[#0d0d12]"></span>
               </button>
-              <WalletMultiButton className="!h-12 !bg-white !text-black !rounded-xl !font-bold hover:!scale-105 transition-transform" />
+              <WalletMultiButton className="!h-10 md:!h-12 !bg-white !text-black !rounded-xl !font-bold hover:!scale-105 transition-transform !text-xs md:!text-sm" />
             </div>
           </header>
 
@@ -179,8 +190,8 @@ export default function Home() {
           )}
         </div>
 
-        {/* Right Side: AI Advisor Sidebar */}
-        <div className="w-96 border-l border-white/5 p-8 flex flex-col gap-6 bg-[#0d0d12]/20 backdrop-blur-2xl">
+        {/* Right Side: AI Advisor Sidebar - Desktop Only */}
+        <div className="hidden xl:flex w-96 border-l border-white/5 p-8 flex-col gap-6 bg-[#0d0d12]/20 backdrop-blur-2xl">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-10 h-10 bg-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-purple-500/20">
               <MessageSquare size={20} className="text-white" />
@@ -239,7 +250,44 @@ export default function Home() {
           </div>
         </div>
       </main>
+
+      {/* Mobile Bottom Nav */}
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-20 bg-[#0d0d12]/80 backdrop-blur-2xl border-t border-white/5 flex items-center justify-around px-4 z-[100]">
+        <MobileNavItem 
+          icon={<LayoutDashboard size={20} />} 
+          active={activeTab === 'dashboard'} 
+          onClick={() => setActiveTab('dashboard')}
+        />
+        <MobileNavItem 
+          icon={<Wallet size={20} />} 
+          active={activeTab === 'portfolio'} 
+          onClick={() => setActiveTab('portfolio')}
+        />
+        <MobileNavItem 
+          icon={<TrendingUp size={20} />} 
+          active={activeTab === 'yield'} 
+          onClick={() => setActiveTab('yield')}
+        />
+        <MobileNavItem 
+          icon={<MessageSquare size={20} />} 
+          active={activeTab === 'settings'} 
+          onClick={() => setActiveTab('settings')} // Mock for AI on mobile
+        />
+      </nav>
     </div>
+  );
+}
+
+function MobileNavItem({ icon, active, onClick }: { icon: React.ReactNode, active: boolean, onClick: () => void }) {
+  return (
+    <button 
+      onClick={onClick}
+      className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all ${
+        active ? 'bg-purple-500 text-white shadow-lg shadow-purple-500/20' : 'text-gray-500'
+      }`}
+    >
+      {icon}
+    </button>
   );
 }
 

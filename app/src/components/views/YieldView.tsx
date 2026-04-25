@@ -1,16 +1,33 @@
 'use client';
 
 import { useState } from 'react';
-import { TrendingUp, Coins, ArrowRight, ShieldCheck, Zap, Loader2, RefreshCcw, Search, Filter, Info as InfoIcon } from 'lucide-react';
+import { TrendingUp, Coins, ArrowRight, ShieldCheck, Zap, Loader2, RefreshCcw, Search, Filter, Info as InfoIcon, Sparkles } from 'lucide-react';
 import { useYield } from '@/hooks/useYield';
+import { useRewards } from '@/hooks/useRewards';
+import { useAnchorProgram } from '@/hooks/useAnchorProgram';
+import { useEffect } from 'react';
 import YieldDetailsModal from '@/components/modals/YieldDetailsModal';
 
 export default function YieldView() {
   const { strategies, loading, error, refresh } = useYield();
+  const { points } = useRewards();
+  const { getUserPositions, wallet } = useAnchorProgram();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('All');
   const [selectedStrategy, setSelectedStrategy] = useState<any>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [stakedValue, setStakedValue] = useState(0);
+
+  useEffect(() => {
+    async function fetchStaked() {
+      if (wallet) {
+        const positions = await getUserPositions();
+        const total = positions.reduce((acc, curr) => acc + (curr.account.amount.toNumber() / 1_000_000), 0);
+        setStakedValue(total);
+      }
+    }
+    fetchStaked();
+  }, [wallet]);
 
   const openDetails = (strat: any) => {
     setSelectedStrategy(strat);
@@ -59,15 +76,21 @@ export default function YieldView() {
         </div>
         <div className="glass-card !p-6 flex flex-col items-center text-center">
           <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-2">Total Staked</p>
-          <h3 className="text-3xl font-black text-white">$0.00</h3>
+          <h3 className="text-3xl font-black text-white">${stakedValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}</h3>
         </div>
         <div className="glass-card !p-6 flex flex-col items-center text-center">
           <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-2">Yield Earned</p>
           <h3 className="text-3xl font-black text-green-400">+$0.00</h3>
         </div>
-        <div className="glass-card !p-6 flex flex-col items-center text-center">
-          <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-2">Reward Points</p>
-          <h3 className="text-3xl font-black text-cyan-400">0</h3>
+        <div className="glass-card !p-6 flex flex-col items-center text-center group relative overflow-hidden">
+          <div className="absolute inset-0 bg-cyan-400/5 translate-y-full group-hover:translate-y-0 transition-transform duration-500"></div>
+          <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-2 relative z-10">Reward Points</p>
+          <div className="flex items-center gap-2 relative z-10">
+            <h3 className="text-3xl font-black text-cyan-400 animate-pulse-slow">
+              {points.toLocaleString()}
+            </h3>
+            <Sparkles className="text-cyan-400/50" size={16} />
+          </div>
         </div>
       </div>
 

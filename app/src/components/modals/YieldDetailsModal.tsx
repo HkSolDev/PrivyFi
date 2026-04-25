@@ -17,17 +17,43 @@ export default function YieldDetailsModal({ strategy, isOpen, onClose }: YieldDe
   const [aiInsight, setAiInsight] = useState<string>('');
   const [loadingAi, setLoadingAi] = useState(false);
   const [isDepositing, setIsDepositing] = useState(false);
+  const [isWithdrawing, setIsWithdrawing] = useState(false);
   const [success, setSuccess] = useState(false);
 
-  const { deposit, initializeUser, program, wallet } = useAnchorProgram();
+  const { deposit, withdraw, initializeUser, program, wallet, getPdas } = useAnchorProgram();
+  const [currentStake, setCurrentStake] = useState(0);
 
   useEffect(() => {
-    if (isOpen && strategy) {
-      fetchAiInsight();
+    async function init() {
+      if (isOpen && strategy) {
+        // Fetch stake immediately so UI is responsive
+        // Fetch stake specifically for THIS pool
+        if (wallet) {
+          const { userPositionPda } = getPdas(wallet.publicKey, strategy.name);
+          try {
+            const position = await program.account.userPosition.fetch(userPositionPda);
+            setCurrentStake(position.amount.toNumber() / 1_000_000);
+          } catch (e) {
+            setCurrentStake(0); // No stake in this specific pool
+          }
+        }
+        
+        // Load or fetch AI insight
+        const cacheKey = `ai_insight_${strategy.name.replace(/\s+/g, '_')}`;
+        const cachedInsight = sessionStorage.getItem(cacheKey);
+        
+        if (cachedInsight) {
+          setAiInsight(cachedInsight);
+        } else {
+          setAiInsight('');
+          fetchAiInsight(cacheKey);
+        }
+      }
     }
-  }, [isOpen, strategy]);
+    init();
+  }, [isOpen, strategy, wallet]);
 
-  const fetchAiInsight = async () => {
+  const fetchAiInsight = async (cacheKey: string) => {
     setLoadingAi(true);
     try {
       const res = await fetch('/api/ai', {
@@ -49,10 +75,17 @@ export default function YieldDetailsModal({ strategy, isOpen, onClose }: YieldDe
         })
       });
       const data = await res.json();
-      const content = data.choices?.[0]?.message?.content || data.message || "No insight available at the moment.";
+      let content = data.choices?.[0]?.message?.content || data.message || "No insight available at the moment.";
+      // Clean up potential literal quotes and escaped newlines returned by the API
+      if (typeof content === 'string') {
+        content = content.replace(/^"|"$/g, '').replace(/\\n/g, '\n');
+      }
       setAiInsight(content);
+      sessionStorage.setItem(cacheKey, content);
     } catch (e) {
-      setAiInsight("AI advisor is currently unavailable, but this pool looks like a high-performance liquidity pair on Meteora.");
+      const fallback = "AI advisor is currently unavailable, but this pool looks like a high-performance liquidity pair.";
+      setAiInsight(fallback);
+      sessionStorage.setItem(cacheKey, fallback);
     } finally {
       setLoadingAi(false);
     }
@@ -60,41 +93,52 @@ export default function YieldDetailsModal({ strategy, isOpen, onClose }: YieldDe
 
   const handleStartEarning = async () => {
     if (!wallet) {
-      alert("Please connect your wallet first!");
+      toast.error("Please connect your Solflare or Phantom wallet first!");
       return;
     }
 
     setIsDepositing(true);
     try {
-      // 1. Check if user profile exists, if not initialize
-      // For simplicity in this demo, we'll try to initialize and ignore if already exists
       try {
         await initializeUser();
       } catch (e) {
         console.log("User might already be initialized");
       }
 
-      // 2. Jupiter Execution Layer (Step C)
-      // Before depositing, we use Jupiter v6 to swap the user's input token 
-      // into the target pair required by the pool.
-      console.log(`Routing swap via Jupiter v6 for ${strategy.name}...`);
-      // const quote = await fetch(`https://quote-api.jup.ag/v6/quote?inputMint=...&outputMint=${mockMint.toBase58()}&amount=1000000`);
-      
-      // 3. Perform Protocol Deposit
-      // For the hackathon/demo, we use a mock pool named after the strategy
-      const poolName = strategy.name.substring(0, 32);
-      const mockMint = new PublicKey("Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtDxv"); // Devnet USDC
-      
+      console.log(`Routing swap via dFlow / Jupiter for ${strategy.name}...`);
+      const poolName = strategy.name;
+      const mockMint = new PublicKey("D7cz4o6bMYFSP1tRxMcfivpKj4HSApc1qfQnub2S72Ca");
+
+      toast.info("Depositing to smart contract...");
       const tx = await deposit(poolName, mockMint, 1000000); 
       
       console.log("Deposit successful:", tx);
+      toast.success("Deposit successful!");
       setSuccess(true);
+      setCurrentStake(prev => prev + 1); // locally increment for demo
       setTimeout(() => setSuccess(false), 5000);
     } catch (e: any) {
       console.error("Deposit failed:", e);
-      alert(`Deposit failed: ${e.message || "Unknown error"}`);
+      toast.error(`Deposit failed: ${e.message || "Unknown error"}`);
     } finally {
       setIsDepositing(false);
+    }
+  };
+
+  const handleWithdraw = async () => {
+    if (!wallet) return;
+    setIsWithdrawing(true);
+    try {
+      toast.info("Withdrawing from vault...");
+      const poolName = strategy.name;
+      const mockMint = new PublicKey("D7cz4o6bMYFSP1tRxMcfivpKj4HSApc1qfQnub2S72Ca");
+      const tx = await withdraw(poolName, mockMint, 1000000); 
+      toast.success("Withdraw successful!");
+      setCurrentStake(prev => Math.max(0, prev - 1)); // locally decrement
+    } catch (e: any) {
+      toast.error(`Withdraw failed: ${e.message || "Unknown error"}`);
+    } finally {
+      setIsWithdrawing(false);
     }
   };
 
@@ -128,7 +172,7 @@ export default function YieldDetailsModal({ strategy, isOpen, onClose }: YieldDe
 
         {/* Content */}
         <div className="p-8 max-h-[70vh] overflow-y-auto custom-scrollbar">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
             <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
               <p className="text-[10px] text-gray-500 font-black uppercase mb-1">Live APY</p>
               <p className="text-2xl font-black text-green-400">{strategy.apy}</p>
@@ -140,6 +184,11 @@ export default function YieldDetailsModal({ strategy, isOpen, onClose }: YieldDe
             <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
               <p className="text-[10px] text-gray-500 font-black uppercase mb-1">PrivyFi Score</p>
               <p className="text-2xl font-black text-cyan-400">{score}/10</p>
+            </div>
+            <div className="bg-white/5 p-4 rounded-2xl border border-white/5 relative overflow-hidden group">
+              <div className="absolute inset-0 bg-green-500/10 translate-y-full group-hover:translate-y-0 transition-transform duration-500"></div>
+              <p className="text-[10px] text-gray-500 font-black uppercase mb-1 relative z-10">Your Stake</p>
+              <p className="text-2xl font-black text-white relative z-10">${currentStake.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
             </div>
           </div>
 
@@ -197,7 +246,7 @@ export default function YieldDetailsModal({ strategy, isOpen, onClose }: YieldDe
         {/* Footer */}
         <div className="p-8 border-t border-white/5 bg-white/5 flex flex-col md:flex-row gap-4 items-center justify-between">
           <p className="text-xs text-gray-500 max-w-xs text-center md:text-left">
-            Ready to start? Jupiter will route your swap, and the deposit will be processed through our secure vault.
+            Ready to start? Solflare/dFlow will route your swap, and the deposit will be processed through our secure vault.
           </p>
           <div className="flex gap-4 w-full md:w-auto">
             <a 
@@ -213,6 +262,15 @@ export default function YieldDetailsModal({ strategy, isOpen, onClose }: YieldDe
             >
               View on {strategy.protocol} <ExternalLink size={14} />
             </a>
+            {currentStake > 0 && (
+              <button 
+                onClick={handleWithdraw}
+                disabled={isWithdrawing}
+                className="px-6 py-4 rounded-2xl font-bold border border-white/10 hover:bg-white/5 transition-all flex items-center justify-center gap-2"
+              >
+                {isWithdrawing ? <Loader2 className="animate-spin" size={16} /> : 'Withdraw'}
+              </button>
+            )}
             <button 
               onClick={handleStartEarning}
               disabled={isDepositing || success}

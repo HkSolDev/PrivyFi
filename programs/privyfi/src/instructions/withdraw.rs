@@ -71,7 +71,6 @@ pub fn withdraw_handler(ctx: Context<Withdraw>, amount: u64) -> Result<()> {
 
     let cpi_program = ctx.accounts.token_program.key();
     let cpi_context = CpiContext::new_with_signer(cpi_program, cpi_accounts, signer_seeds);
-
     token_interface::transfer_checked(cpi_context, amount, decimals)?;
 
     let pool = &mut ctx.accounts.pool;

@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { usePortfolio } from './usePortfolio';
+import { useYield } from './useYield';
+import { useAnchorProgram } from './useAnchorProgram';
 
 export type Message = {
   role: 'user' | 'assistant';
@@ -8,6 +10,8 @@ export type Message = {
 
 export function useAI() {
   const { data: portfolio } = usePortfolio();
+  const { strategies } = useYield();
+  const { getUserPositions, wallet } = useAnchorProgram();
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -23,12 +27,23 @@ export function useAI() {
     setError(null);
 
     try {
+      let stakedPositions: any[] = [];
+      if (wallet) {
+        const positions = await getUserPositions();
+        stakedPositions = positions.map((p: any) => ({
+          pool: 'PrivyFi Vault',
+          amount: (p.account.amount.toNumber() / 1000000).toLocaleString()
+        }));
+      }
+
       const response = await fetch('/api/ai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           messages: updatedMessages,
-          portfolio: portfolio?.attributes?.positions // Pass real portfolio data
+          portfolio: portfolio?.attributes?.positions, // Pass real portfolio data
+          staked: stakedPositions, // Pass PrivyFi staked data
+          strategies // Pass live yield data
         }),
       });
 
@@ -37,7 +52,12 @@ export function useAI() {
       }
 
       const data = await response.json();
-      const botMessage: Message = data.choices[0].message;
+      let content = data.choices[0].message.content;
+      if (typeof content === 'string') {
+        content = content.replace(/^"|"$/g, '').replace(/\\n/g, '\n');
+      }
+      
+      const botMessage: Message = { ...data.choices[0].message, content };
       
       setMessages([...updatedMessages, botMessage]);
     } catch (err: any) {

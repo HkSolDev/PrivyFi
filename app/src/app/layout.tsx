@@ -3,6 +3,7 @@ import "./globals.css";
 import { WalletContextProvider } from "@/components/WalletContextProvider";
 import { Geist } from "next/font/google";
 import { cn } from "@/lib/utils";
+import { Toaster } from "sonner";
 
 const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
@@ -21,6 +22,7 @@ export default function RootLayout({
       <body>
         <WalletContextProvider>
           {children}
+          <Toaster theme="dark" position="bottom-right" />
         </WalletContextProvider>
       </body>
     </html>
