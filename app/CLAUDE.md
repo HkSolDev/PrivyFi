@@ -25,26 +25,33 @@ PrivyFi is a premium, private, AI-powered yield optimization dashboard on Solana
 - **Wallet Integration**: `WalletContextProvider.tsx` configured for Devnet/Mainnet with Solflare support.
 - **Architecture**: Using a **Single-Page View Toggle** pattern to maintain the wallet session across Dashboard, Portfolio, and Yield views.
 
-### Phase 4: Real-Time Integrations & Infrastructure (In Progress)
-- **QuickNode RPC**: Switched from default Helius to high-performance **QuickNode Devnet RPC**. Eligible for QuickNode track. ✅
-- **Anchor Program Bridge**: Created `useAnchorProgram` hook and imported IDL to `src/idl/`. Ready for on-chain execution. ✅
-- **Portfolio (Zerion + RPC)**: Created `usePortfolio` hook. Implemented a **Direct Solana RPC Fallback** (with SPL token support) for Devnet. ✅
-- **AI Advisor (OpenRouter)**: Integrated **Llama 3.3 70B**. AI has real-time portfolio context. ✅
-- **Yield Aggregator (Meteora)**: Created `useYield` hook fetching live pools from Meteora DLMM API. ✅
+### Phase 4: Real-Time Integrations & UX Excellence (In Progress)
+- **QuickNode RPC Integration**: Switched to QuickNode Devnet RPC. 
+  - *Why*: To ensure zero-latency blockchain reads and qualify for the QuickNode hackathon track. ✅
+- **AI Yield Advisor (Llama 3.3 / Qwen)**: Integrated via OpenRouter. 
+  - *Why*: To provide "context-aware" investment advice. The AI knows the user's balance and the pool's live APY. ✅
+- **AI Knowledge Pop-up (Modal)**: Created a detailed deep-dive modal for every yield pool.
+  - *Why*: Beginners don't understand "Liquidity Providing." The modal explains it in simple terms with an AI-generated "PrivyFi Score." ✅
+- **Professional Markdown Rendering**: Integrated `react-markdown` and `@tailwindcss/typography`.
+  - *Why*: Raw AI text is messy. Formatted text with purple highlights (prose) makes the advice feel premium and authoritative. ✅
+- **Scalable Yield Scanner**: Expanded the API to show 30+ pools from Meteora.
+  - *Why*: To give users the widest range of opportunities across SOL, Stables, and high-yield tokens. ✅
 
 ## Development Patterns to Maintain
 1. **QuickNode First**: Use `NEXT_PUBLIC_QUICKNODE_RPC_URL` for all on-chain connections.
-2. **Anchor Patterns**: Use the `useAnchorProgram` hook for all instruction calls.
-3. **Security-First APIs**: Access all keys via server-side proxies.
+2. **Premium AI UX**: Always render AI output via the `<ReactMarkdown>` component inside a `.prose` container.
+3. **Context-Driven Prompting**: When calling the AI, always include the relevant pool data (name, apy, protocol) and user context (portfolio).
+4. **Security-First APIs**: Access all keys via server-side proxies (`/api/*`).
 
 ## Current Task
-- Implementing the `handleDeposit` logic in `YieldView`.
-- Integrating **MagicBlock Ephemeral Rollups**.
-- Building the **PrivacyView**.
+- **The Execution Layer**: Connecting the "Start Earning" button in the modal to the Anchor `deposit` instruction.
+- **MagicBlock Rollups**: Integrating ephemeral rollups for the privacy toggle.
+- **PUSD Integration**: Adding Palm USD support.
 
 ## Lookup & References
 - **Program ID**: `Czmhx4o5349ugHqTjNEArm6eoakk2btihu4bcBCvdt36`
 - **QuickNode RPC**: `NEXT_PUBLIC_QUICKNODE_RPC_URL`
 - **Anchor Hook**: `app/src/hooks/useAnchorProgram.ts`
-- **Yield Source**: `app/src/app/api/yield/route.ts`
-- **Portfolio Hook**: `app/src/hooks/usePortfolio.ts`
+- **AI Modal**: `app/src/components/modals/YieldDetailsModal.tsx`
+- **Markdown Config**: `react-markdown` + `prose` classes in `page.tsx` and `YieldDetailsModal.tsx`.
+- **Yield Logic**: `app/src/app/api/yield/route.ts`

@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
         'X-Title': 'PrivyFi', // Optional
       },
       body: JSON.stringify({
-        model: 'meta-llama/llama-3.3-70b-instruct',
+        model: 'qwen/qwen3.5-flash-02-23',
         messages: [systemPrompt, ...messages],
         temperature: 0.7,
         max_tokens: 500,

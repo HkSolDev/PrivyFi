@@ -17,6 +17,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
+import ReactMarkdown from 'react-markdown';
 
 // Import Views
 import DashboardView from '@/components/views/DashboardView';
@@ -258,7 +259,7 @@ function NavItem({ icon, label, active = false, onClick }: { icon: React.ReactNo
 function ChatBubble({ type, message }: { type: 'bot' | 'user', message: string }) {
   return (
     <div className={`flex ${type === 'bot' ? 'justify-start' : 'justify-end'}`}>
-      <div className={`max-w-[90%] p-4 rounded-2xl text-sm leading-relaxed ${
+      <div className={`max-w-[95%] p-4 rounded-2xl text-sm leading-relaxed ${
         type === 'bot' 
           ? 'bg-white/5 border border-white/5 text-gray-300 rounded-bl-none' 
           : 'bg-purple-600 text-white rounded-br-none font-bold'
@@ -269,7 +270,9 @@ function ChatBubble({ type, message }: { type: 'bot' | 'user', message: string }
               <ShieldCheck size={14} className="text-purple-400" />
             </div>
           )}
-          <span>{message}</span>
+          <div className="prose prose-invert max-w-none prose-p:leading-relaxed prose-strong:text-purple-400 prose-headings:text-white prose-sm">
+            {type === 'bot' ? <ReactMarkdown>{message}</ReactMarkdown> : <span>{message}</span>}
+          </div>
         </div>
       </div>
     </div>
