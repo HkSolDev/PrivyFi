@@ -16,8 +16,10 @@ export const WalletContextProvider: FC<{ children: ReactNode }> = ({ children })
     // The network can be set to 'devnet', 'testnet', or 'mainnet-beta'.
     const network = WalletAdapterNetwork.Devnet;
 
-    // You can also provide a custom RPC endpoint.
-    const endpoint = useMemo(() => clusterApiUrl(network), [network]);
+    // Use QuickNode RPC for better performance and track eligibility
+    const endpoint = useMemo(() => {
+        return process.env.NEXT_PUBLIC_QUICKNODE_RPC_URL || clusterApiUrl(network);
+    }, [network]);
 
     const wallets = useMemo(
         () => [

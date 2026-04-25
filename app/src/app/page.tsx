@@ -13,14 +13,18 @@ import {
   Settings,
   Bell,
   User,
-  Send
+  Send,
+  Loader2
 } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 // Import Views
 import DashboardView from '@/components/views/DashboardView';
 import PortfolioView from '@/components/views/PortfolioView';
 import YieldView from '@/components/views/YieldView';
+
+// Import Hooks
+import { useAI } from '@/hooks/useAI';
 
 type ViewType = 'dashboard' | 'portfolio' | 'yield' | 'vaults' | 'privacy' | 'settings';
 
@@ -28,12 +32,30 @@ export default function Home() {
   const { connected } = useWallet();
   const [isMounted, setIsMounted] = useState(false);
   const [activeTab, setActiveTab] = useState<ViewType>('dashboard');
+  const [input, setInput] = useState('');
+  
+  const { messages, sendMessage, loading: aiLoading } = useAI();
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
+  // Auto-scroll chat to bottom
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages, aiLoading]);
+
   if (!isMounted) return null;
+
+  const handleSend = async () => {
+    if (!input.trim() || aiLoading) return;
+    const currentInput = input;
+    setInput('');
+    await sendMessage(currentInput);
+  };
 
   const renderView = () => {
     switch (activeTab) {
@@ -165,20 +187,48 @@ export default function Home() {
             </div>
           </div>
           
-          <div className="flex-1 flex flex-col gap-4 overflow-y-auto pr-2 custom-scrollbar">
-            <div className="bg-white/5 border border-white/5 p-4 rounded-2xl rounded-bl-none text-sm text-gray-300 leading-relaxed">
-              "Hi there! I'm your PrivyFi advisor. {connected ? "I'm ready to analyze your portfolio." : "Connect your wallet so I can analyze your holdings."}"
-            </div>
+          <div 
+            ref={scrollRef}
+            className="flex-1 flex flex-col gap-4 overflow-y-auto pr-2 custom-scrollbar"
+          >
+            {messages.length === 0 ? (
+              <ChatBubble 
+                type="bot" 
+                message={`Hi there! I'm your PrivyFi advisor. ${connected ? "I've analyzed your portfolio—how can I help you optimize your yield today?" : "Connect your wallet so I can analyze your holdings."}`} 
+              />
+            ) : (
+              messages.map((msg, i) => (
+                <ChatBubble 
+                  key={i} 
+                  type={msg.role === 'assistant' ? 'bot' : 'user'} 
+                  message={msg.content} 
+                />
+              ))
+            )}
+            {aiLoading && (
+              <div className="flex justify-start">
+                <div className="bg-white/5 border border-white/5 p-4 rounded-2xl rounded-bl-none">
+                  <Loader2 className="text-purple-400 animate-spin" size={18} />
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="mt-auto">
             <div className="relative">
               <input 
                 type="text" 
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSend()}
                 placeholder="Ask Privy anything..." 
-                className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-5 focus:outline-none focus:border-purple-500/50 transition-all text-sm"
+                className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-5 pr-14 focus:outline-none focus:border-purple-500/50 transition-all text-sm"
               />
-              <button className="absolute right-3 top-1/2 -translate-y-1/2 p-2 hover:bg-white/10 rounded-lg transition-colors">
+              <button 
+                onClick={handleSend}
+                disabled={aiLoading}
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-2 hover:bg-white/10 rounded-lg transition-colors disabled:opacity-50"
+              >
                 <ArrowUpRight size={18} className="text-purple-400" />
               </button>
             </div>
@@ -201,6 +251,27 @@ function NavItem({ icon, label, active = false, onClick }: { icon: React.ReactNo
     >
       <span className={`${active ? 'text-purple-400' : 'group-hover:text-purple-400 transition-colors'}`}>{icon}</span>
       <span className="text-sm">{label}</span>
+    </div>
+  );
+}
+
+function ChatBubble({ type, message }: { type: 'bot' | 'user', message: string }) {
+  return (
+    <div className={`flex ${type === 'bot' ? 'justify-start' : 'justify-end'}`}>
+      <div className={`max-w-[90%] p-4 rounded-2xl text-sm leading-relaxed ${
+        type === 'bot' 
+          ? 'bg-white/5 border border-white/5 text-gray-300 rounded-bl-none' 
+          : 'bg-purple-600 text-white rounded-br-none font-bold'
+      }`}>
+        <div className="flex gap-3">
+          {type === 'bot' && (
+            <div className="w-6 h-6 bg-purple-500/20 rounded-lg flex-shrink-0 flex items-center justify-center">
+              <ShieldCheck size={14} className="text-purple-400" />
+            </div>
+          )}
+          <span>{message}</span>
+        </div>
+      </div>
     </div>
   );
 }

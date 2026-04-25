@@ -1,0 +1,51 @@
+import { useState } from 'react';
+import { usePortfolio } from './usePortfolio';
+
+export type Message = {
+  role: 'user' | 'assistant';
+  content: string;
+};
+
+export function useAI() {
+  const { data: portfolio } = usePortfolio();
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const sendMessage = async (content: string) => {
+    if (!content.trim()) return;
+
+    const userMessage: Message = { role: 'user', content };
+    const updatedMessages = [...messages, userMessage];
+    
+    setMessages(updatedMessages);
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch('/api/ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          messages: updatedMessages,
+          portfolio: portfolio?.attributes?.positions // Pass real portfolio data
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to get response from AI');
+      }
+
+      const data = await response.json();
+      const botMessage: Message = data.choices[0].message;
+      
+      setMessages([...updatedMessages, botMessage]);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return { messages, sendMessage, loading, error };
+}

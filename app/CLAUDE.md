@@ -19,26 +19,32 @@ PrivyFi is a premium, private, AI-powered yield optimization dashboard on Solana
 - **PDA Security**: Seeds derived from `user.key()`. Signer constraints ensure only the wallet owner can mutate their profile or reward state.
 - **Deployment**: Configured for Solana Devnet.
 
-### Phase 3: Frontend Foundation (In Progress)
-- **Initialization**: Next.js app initialized with a custom PostCSS adapter for Tailwind v4 compatibility.
-- **Design Foundation**: Established `globals.css` with a "Purple Nebula" theme (Radial gradients + Glassmorphism).
-- **Wallet Integration**: `WalletContextProvider.tsx` configured for Devnet with Solflare support.
-- **Architecture**: Using a **Single-Page View Toggle** pattern. We swap view components (`activeTab` state) instead of full page reloads to ensure the **Solana Wallet session persists** without re-approval.
+### Phase 3: Frontend Foundation (Complete)
+- **Initialization**: Next.js app initialized with shadcn/ui and custom PostCSS adapter for Tailwind v4.
+- **Design Foundation**: Established `globals.css` with a "Purple Nebula" theme. Fixed visibility issues by forcing dark-theme CSS variables as defaults.
+- **Wallet Integration**: `WalletContextProvider.tsx` configured for Devnet/Mainnet with Solflare support.
+- **Architecture**: Using a **Single-Page View Toggle** pattern to maintain the wallet session across Dashboard, Portfolio, and Yield views.
+
+### Phase 4: Real-Time Integrations & Infrastructure (In Progress)
+- **QuickNode RPC**: Switched from default Helius to high-performance **QuickNode Devnet RPC**. Eligible for QuickNode track. ✅
+- **Anchor Program Bridge**: Created `useAnchorProgram` hook and imported IDL to `src/idl/`. Ready for on-chain execution. ✅
+- **Portfolio (Zerion + RPC)**: Created `usePortfolio` hook. Implemented a **Direct Solana RPC Fallback** (with SPL token support) for Devnet. ✅
+- **AI Advisor (OpenRouter)**: Integrated **Llama 3.3 70B**. AI has real-time portfolio context. ✅
+- **Yield Aggregator (Meteora)**: Created `useYield` hook fetching live pools from Meteora DLMM API. ✅
 
 ## Development Patterns to Maintain
-1. **Design First**: Every component must adhere to the "Premium/State-of-the-Art" aesthetic. Use `.glass-card` and `.purple-glow` utility classes.
-2. **Security First**: 
-    - On-chain: Always use `checked_add`/`checked_sub` and proper `Signer` constraints.
-    - Frontend: Keep API keys (Zerion/OpenRouter) in Next.js Server Actions or API routes, never in the client-side code.
-3. **Modular State**: Keep the logic for specific views (Portfolio, Yield, AI Advisor) in separate components under `src/components/views/`.
+1. **QuickNode First**: Use `NEXT_PUBLIC_QUICKNODE_RPC_URL` for all on-chain connections.
+2. **Anchor Patterns**: Use the `useAnchorProgram` hook for all instruction calls.
+3. **Security-First APIs**: Access all keys via server-side proxies.
 
 ## Current Task
-- Initializing **shadcn/ui** for high-quality interactive components.
-- Implementing the `activeTab` navigation logic to make the sidebar functional.
-- Building the `PortfolioView` to display dummy/real token data.
+- Implementing the `handleDeposit` logic in `YieldView`.
+- Integrating **MagicBlock Ephemeral Rollups**.
+- Building the **PrivacyView**.
 
 ## Lookup & References
 - **Program ID**: `Czmhx4o5349ugHqTjNEArm6eoakk2btihu4bcBCvdt36`
-- **Main Entry**: `programs/privyfi/src/lib.rs`
-- **Main UI Entry**: `app/src/app/page.tsx`
-- **Design Tokens**: `app/src/app/globals.css`
+- **QuickNode RPC**: `NEXT_PUBLIC_QUICKNODE_RPC_URL`
+- **Anchor Hook**: `app/src/hooks/useAnchorProgram.ts`
+- **Yield Source**: `app/src/app/api/yield/route.ts`
+- **Portfolio Hook**: `app/src/hooks/usePortfolio.ts`
