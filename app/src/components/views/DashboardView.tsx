@@ -17,7 +17,7 @@ import PerformanceChart from '@/components/PerformanceChart';
 import YieldDetailsModal from '@/components/modals/YieldDetailsModal';
 
 export default function DashboardView() {
-  const { data, loading } = usePortfolio();
+  const { tokens, totalValue, pricesLoading } = usePortfolio();
   const { profile } = useUserProfile();
   const { strategies, loading: yieldLoading } = useYield();
   const { getUserPositions, wallet } = useAnchorProgram();
@@ -39,8 +39,8 @@ export default function DashboardView() {
 
   const isPrivate = profile?.privateMode || false;
 
-  const totalValue = data?.attributes?.total?.positions ? `$${data.attributes.total.positions.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '$0.00';
-  const positionsCount = data?.attributes?.positions?.length || 0;
+  const totalValueDisplay = `$${totalValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+  const positionsCount = tokens.length;
 
   const topStrategies = strategies.slice(0, 3);
 
@@ -57,13 +57,13 @@ export default function DashboardView() {
         />
         <StatCard 
           label="Total Net Worth" 
-          value={loading ? "Loading..." : totalValue} 
-          change={loading ? "..." : "+0.00%"} 
+          value={pricesLoading ? "Loading..." : totalValueDisplay} 
+          change={pricesLoading ? "..." : "+0.00%"} 
           trend="neutral"
         />
         <StatCard 
           label="Yield Strategies" 
-          value={loading ? "..." : `${positionsCount} Active`} 
+          value={`${positionsCount} Active`} 
           change="Stable" 
           trend="neutral"
         />

@@ -227,21 +227,46 @@ export default function YieldDetailsModal({ strategy, isOpen, onClose }: YieldDe
                 </Button>
               </div>
             ) : (
-              <div className="text-gray-300 leading-relaxed text-sm relative z-10 space-y-3">
-                <p><strong className={recommendation.recommended ? 'text-green-400' : 'text-orange-400'}>Reasoning:</strong> {recommendation.reasoning}</p>
-                <div className="flex items-center gap-4 pt-2">
-                  <div className="flex-1">
+              <div className="text-gray-300 leading-relaxed text-sm relative z-10 space-y-4">
+                {/* Reasoning bullets */}
+                <ul className="space-y-1.5">
+                  {(Array.isArray(recommendation.reasoning) ? recommendation.reasoning : [recommendation.reasoning]).map((reason: string, idx: number) => (
+                    <li key={idx} className="flex items-start gap-2">
+                      <span className={`mt-1 w-1.5 h-1.5 rounded-full flex-shrink-0 ${recommendation.recommended ? 'bg-green-400' : 'bg-orange-400'}`} />
+                      <span>{reason}</span>
+                    </li>
+                  ))}
+                </ul>
+
+                {/* Example return */}
+                {recommendation.exampleReturn && (
+                  <p className="text-xs text-purple-300 bg-purple-500/10 border border-purple-500/20 rounded-xl px-3 py-2 italic">
+                    💡 {recommendation.exampleReturn}
+                  </p>
+                )}
+
+                {/* Score bars */}
+                <div className="grid grid-cols-2 gap-4 pt-1">
+                  <div>
                     <div className="flex justify-between text-xs mb-1">
-                      <span className="text-gray-400">Confidence Score</span>
+                      <span className="text-gray-400">Confidence</span>
                       <span className="font-bold">{recommendation.confidenceScore}%</span>
                     </div>
-                    <div className="w-full bg-black/40 rounded-full h-2">
-                      <div className={`h-2 rounded-full ${recommendation.confidenceScore > 80 ? 'bg-green-500' : recommendation.confidenceScore > 50 ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${recommendation.confidenceScore}%` }}></div>
+                    <div className="w-full bg-black/40 rounded-full h-1.5">
+                      <div className={`h-1.5 rounded-full transition-all ${recommendation.confidenceScore > 80 ? 'bg-green-500' : recommendation.confidenceScore > 50 ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${recommendation.confidenceScore}%` }} />
                     </div>
                   </div>
-                  <div className="flex-1">
-                    <p className="text-xs text-gray-400 mb-1">Assessed Risk Level</p>
-                    <p className={`font-bold ${recommendation.riskLevel === 'Low' ? 'text-green-400' : recommendation.riskLevel === 'Medium' ? 'text-yellow-400' : 'text-orange-400'}`}>{recommendation.riskLevel}</p>
+                  <div>
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="text-gray-400">Risk Score</span>
+                      <span className="font-bold">{recommendation.riskScore ?? (recommendation.riskLevel === 'Low' ? 20 : recommendation.riskLevel === 'Medium' ? 50 : 80)}/100</span>
+                    </div>
+                    <div className="w-full bg-black/40 rounded-full h-1.5">
+                      <div
+                        className={`h-1.5 rounded-full transition-all ${(recommendation.riskScore ?? 50) < 35 ? 'bg-green-500' : (recommendation.riskScore ?? 50) < 65 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                        style={{ width: `${recommendation.riskScore ?? (recommendation.riskLevel === 'Low' ? 20 : recommendation.riskLevel === 'Medium' ? 50 : 80)}%` }}
+                      />
+                    </div>
                   </div>
                 </div>
               </div>

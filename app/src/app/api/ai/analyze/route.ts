@@ -15,22 +15,28 @@ export async function POST(req: NextRequest) {
 
     const systemPrompt = {
       role: 'system',
-      content: `You are a strict DeFi risk assessment which help the user to find the best yield and & wihtout any baise analyze the portfolio tell in a fun and simple way user understand. Your job is to analyze the given yield strategy and the user's portfolio context, then decide if it's a recommended investment also give the user example if you invest this much you got this much in these muhc days .
-      
-      You MUST respond with a valid JSON object matching this exact structure:
+      content: `You are a fun, sharp DeFi risk analyst. Analyze the given yield strategy against the user's portfolio and give a clear, actionable verdict.
+
+      You MUST respond with a valid JSON object matching this EXACT structure — no extra text, no markdown fences:
       {
         "recommended": boolean,
-        "confidenceScore": number (0-100),
+        "confidenceScore": number (0-100, your certainty in this recommendation),
+        "riskScore": number (0-100, where 0 = zero risk, 100 = extremely dangerous),
         "riskLevel": "Low" | "Medium" | "High",
-        "reasoning": "A short, one-sentence explanation"
+        "reasoning": string[] (exactly 3 bullet-point reasons, each 1 concise sentence, keep it human and fun),
+        "exampleReturn": string (e.g. "If you deposit $100 today, you could earn ~$X in 30 days at current APY")
       }
-      
-      Do not include any other text, markdown formatting (like \`\`\`json), or conversational filler. Only output the raw JSON object.`
+
+      Rules:
+      - reasoning array MUST have exactly 3 strings
+      - Be honest — high APY pools should have higher riskScore
+      - exampleReturn should use the strategy's APY to calculate a realistic 30-day example
+      - Keep tone friendly, not robotic`
     };
 
     const userPrompt = {
       role: 'user',
-      content: `Analyze this strategy: ${JSON.stringify(strategy)}. User portfolio context: ${portfolio ? JSON.stringify(portfolio) : 'Unknown'}.`
+      content: `Analyze this DeFi strategy: ${JSON.stringify(strategy)}. User portfolio context: ${portfolio ? JSON.stringify(portfolio) : 'Not provided — assume general DeFi user'}.`
     };
 
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -40,9 +46,9 @@ export async function POST(req: NextRequest) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'qwen/qwen3.5-flash-02-23',
+        model: 'meta-llama/llama-3.1-8b-instruct',
         messages: [systemPrompt, userPrompt],
-        temperature: 0.2,
+        temperature: 0.3,
       }),
     });
 
@@ -56,20 +62,39 @@ export async function POST(req: NextRequest) {
 
     const data = await response.json();
     const content = data.choices[0].message.content;
-    
+
     try {
-      // Sometimes models wrap in markdown even when told not to
-      const cleanContent = content.replace(/^```json\\n?/, '').replace(/\\n?```$/, '').trim();
+      // Strip markdown code fences if model ignores instructions
+      const cleanContent = content
+        .replace(/^```json\s*/i, '')
+        .replace(/^```\s*/i, '')
+        .replace(/\s*```$/i, '')
+        .trim();
       const parsedJson = JSON.parse(cleanContent);
+
+      // Normalize: ensure reasoning is always an array
+      if (typeof parsedJson.reasoning === 'string') {
+        parsedJson.reasoning = [parsedJson.reasoning];
+      }
+      if (!Array.isArray(parsedJson.reasoning)) {
+        parsedJson.reasoning = ['Analysis complete. Review strategy details carefully.'];
+      }
+
       return NextResponse.json(parsedJson);
     } catch (parseError) {
       console.error('Failed to parse JSON from AI:', content);
-      // Fallback
+      // Structured fallback
       return NextResponse.json({
         recommended: strategy.risk !== 'High',
-        confidenceScore: 75,
+        confidenceScore: 70,
+        riskScore: strategy.risk === 'High' ? 75 : strategy.risk === 'Medium' ? 45 : 20,
         riskLevel: strategy.risk || 'Medium',
-        reasoning: 'Fallback analysis: Proceed with standard caution.'
+        reasoning: [
+          'Could not parse full AI response — using rule-based fallback.',
+          `This pool has a ${strategy.risk || 'Medium'} risk profile based on its structure.`,
+          'Always do your own research before depositing funds.'
+        ],
+        exampleReturn: 'Example returns unavailable — check the APY manually.'
       });
     }
 

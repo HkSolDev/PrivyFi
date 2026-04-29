@@ -3,125 +3,156 @@ import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import { LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
 
+const SOL_MINT = 'So11111111111111111111111111111111111111112';
+
+// ── Types ────────────────────────────────────────────────────────────────────
+export interface PortfolioToken {
+  mint: string;
+  name: string;
+  symbol: string;
+  amount: number;
+  isSol: boolean;
+  isDevnet: boolean;         // on devnet wallet
+  hasMetadata: boolean;      // has Metaplex metadata
+  isUnknown: boolean;        // no metadata → truly unknown test token
+}
+
+// ── Module-level caches ───────────────────────────────────────────────────────
+const TOKENS_TTL = 60_000;   // 1 min — token balances
+const PRICES_TTL = 30_000;   // 30 s  — prices (shorter, volatile)
+
+interface CacheEntry<T> { data: T; ts: number }
+
+const tokensCache = new Map<string, CacheEntry<PortfolioToken[]>>();
+const pricesCache = new Map<string, CacheEntry<Record<string, number>>>();
+
+function getCache<T>(map: Map<string, CacheEntry<T>>, key: string, ttl: number): T | null {
+  const entry = map.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.ts > ttl) { map.delete(key); return null; }
+  return entry.data;
+}
+function setCache<T>(map: Map<string, CacheEntry<T>>, key: string, data: T) {
+  map.set(key, { data, ts: Date.now() });
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 export function usePortfolio() {
   const { publicKey } = useWallet();
   const { connection } = useConnection();
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState<boolean>(false);
+  // Stable key — avoids re-firing on every render when connection object ref changes
+  const rpcEndpoint = connection.rpcEndpoint;
+
+  const [tokens, setTokens] = useState<PortfolioToken[]>([]);
+  const [priceMap, setPriceMap] = useState<Record<string, number>>({});
+  const [tokensLoading, setTokensLoading] = useState(false);
+  const [pricesLoading, setPricesLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!publicKey) {
-      setData(null);
-      return;
-    }
+    if (!publicKey) { setTokens([]); setPriceMap({}); return; }
+    const address = publicKey.toBase58();
 
-    const fetchPortfolio = async () => {
-      setLoading(true);
-      setError(null);
+    // ── Phase 1: load token list (fast — RPC only) ─────────────────────────
+    const fetchTokens = async () => {
+      const cached = getCache(tokensCache, address, TOKENS_TTL);
+      if (cached) {
+        setTokens(cached);
+        return cached;
+      }
+
+      setTokensLoading(true);
       try {
-        // 1. Fetch SOL price server-side (avoids CORS)
-        let solPrice = 145.00;
-        try {
-          const priceRes = await fetch('/api/price');
-          if (priceRes.ok) {
-            const priceJson = await priceRes.json();
-            solPrice = priceJson.price ?? 145.00;
-          }
-        } catch {
-          console.warn('SOL price fetch failed, using fallback');
-        }
-
-        // 2. Native SOL balance
         const solBalance = await connection.getBalance(publicKey);
         const solAmount = solBalance / LAMPORTS_PER_SOL;
 
-        // 3. All SPL token accounts on devnet
         const tokenAccounts = await connection.getParsedTokenAccountsByOwner(publicKey, {
           programId: TOKEN_PROGRAM_ID,
         });
-
         const nonZero = tokenAccounts.value.filter(
-          (ta) => (ta.account.data.parsed.info.tokenAmount.uiAmount ?? 0) > 0
+          ta => (ta.account.data.parsed.info.tokenAmount.uiAmount ?? 0) > 0
         );
+        const splMints = nonZero.map(ta => ta.account.data.parsed.info.mint as string);
 
-        const mints = nonZero.map((ta) => ta.account.data.parsed.info.mint as string);
-
-        // 4. Batch-resolve Metaplex metadata server-side
+        // Metaplex metadata batch
         let metadataMap: Record<string, { name: string; symbol: string } | null> = {};
-        if (mints.length > 0) {
+        if (splMints.length > 0) {
           try {
-            const metaRes = await fetch('/api/token-metadata', {
+            const r = await fetch('/api/token-metadata', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ mints }),
+              body: JSON.stringify({ mints: splMints }),
             });
-            if (metaRes.ok) {
-              metadataMap = await metaRes.json();
-            }
-          } catch {
-            console.warn('Token metadata fetch failed');
-          }
+            if (r.ok) metadataMap = await r.json();
+          } catch { /* non-critical */ }
         }
 
-        // 5. Build SPL positions with real or fallback labels
-        const splPositions = nonZero.map((tokenAccount) => {
-          const info = tokenAccount.account.data.parsed.info;
+        const solToken: PortfolioToken = {
+          mint: SOL_MINT,
+          name: 'Solana',
+          symbol: 'SOL',
+          amount: solAmount,
+          isSol: true,
+          isDevnet: false,
+          hasMetadata: true,
+          isUnknown: false,
+        };
+
+        const splTokens: PortfolioToken[] = nonZero.map(ta => {
+          const info = ta.account.data.parsed.info;
           const mint: string = info.mint;
-          const amount: number = info.tokenAmount.uiAmount ?? 0;
           const meta = metadataMap[mint];
-
-          const hasRealName = !!meta?.name;
-
+          const hasMetadata = !!meta?.name;
           return {
-            attributes: {
-              mint,
-              isDevnet: true,
-              hasMetadata: hasRealName,
-              fungible_info: {
-                symbol: hasRealName ? meta!.symbol : mint.slice(0, 4).toUpperCase(),
-                name: hasRealName ? meta!.name : 'Unknown Token',
-              },
-              quantity: { float: amount },
-              value: 0, // devnet SPL tokens have no real USD value
-            },
+            mint,
+            name: hasMetadata ? meta!.name : 'Unknown Token',
+            symbol: hasMetadata ? meta!.symbol : mint.slice(0, 4).toUpperCase(),
+            amount: info.tokenAmount.uiAmount ?? 0,
+            isSol: false,
+            isDevnet: true,
+            hasMetadata,
+            isUnknown: !hasMetadata,
           };
         });
 
-        // 6. SOL position (real price)
-        const solPosition = {
-          attributes: {
-            mint: 'So11111111111111111111111111111111111111112',
-            isDevnet: false,
-            hasMetadata: true,
-            fungible_info: {
-              symbol: 'SOL',
-              name: 'Solana',
-            },
-            quantity: { float: solAmount },
-            value: solAmount * solPrice,
-          },
-        };
-
-        const allPositions = [solPosition, ...splPositions];
-        const totalValue = solAmount * solPrice;
-
-        setData({
-          attributes: {
-            total: { positions: totalValue },
-            positions: allPositions,
-          },
-          meta: { network: 'devnet', solPrice },
-        });
+        const list = [solToken, ...splTokens];
+        setCache(tokensCache, address, list);
+        setTokens(list);
+        return list;
       } catch (err: any) {
         setError(err.message);
+        return [];
       } finally {
-        setLoading(false);
+        setTokensLoading(false);
       }
     };
 
-    fetchPortfolio();
-  }, [publicKey, connection]);
+    // ── Phase 2: load prices (background — happens after tokens render) ────
+    const fetchPrices = async (tokenList: PortfolioToken[]) => {
+      const cached = getCache(pricesCache, address, PRICES_TTL);
+      if (cached) { setPriceMap(cached); return; }
 
-  return { data, loading, error };
+      setPricesLoading(true);
+      try {
+        const mints = tokenList.map(t => t.mint);
+        const r = await fetch(`/api/price?mints=${mints.join(',')}`);
+        if (!r.ok) return;
+        const json = await r.json();
+        const map: Record<string, number> = json.prices ?? {};
+        setCache(pricesCache, address, map);
+        setPriceMap(map);
+      } catch { /* silent — tokens still shown */ }
+      finally { setPricesLoading(false); }
+    };
+
+    fetchTokens().then(list => { if (list.length) fetchPrices(list); });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [publicKey?.toBase58(), rpcEndpoint]);
+
+  // Derived — compute value per token using priceMap
+  const totalValue = tokens.reduce((sum, t) => {
+    return sum + t.amount * (priceMap[t.mint] ?? 0);
+  }, 0);
+
+  return { tokens, priceMap, pricesLoading, tokensLoading, totalValue, error };
 }
