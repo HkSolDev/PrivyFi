@@ -1,8 +1,8 @@
 import { useMemo, useCallback } from 'react';
-import { Connection, PublicKey, SystemProgram } from '@solana/web3.js';
+import { Connection, PublicKey, SystemProgram, Transaction } from '@solana/web3.js';
 import { AnchorProvider, Program, Idl, BN } from '@coral-xyz/anchor';
 import { useAnchorWallet, useConnection, useWallet } from '@solana/wallet-adapter-react';
-import { TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync, ASSOCIATED_TOKEN_PROGRAM_ID } from '@solana/spl-token';
+import { TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync, ASSOCIATED_TOKEN_PROGRAM_ID, createAssociatedTokenAccountIdempotentInstruction } from '@solana/spl-token';
 import idl from '@/idl/privyfi.json';
 import { Privyfi } from '@/idl/privyfi';
 
@@ -51,7 +51,7 @@ export function useAnchorProgram() {
     if (!program || !wallet) return;
     return await program.methods
       .initializeUser()
-      .accounts({
+      .accountsPartial({
         signer: wallet.publicKey,
       })
       .rpc();
@@ -66,57 +66,22 @@ export function useAnchorProgram() {
     const poolVault = getAssociatedTokenAddressSync(mintToken, poolPda, true);
     const userAta = getAssociatedTokenAddressSync(mintToken, wallet.publicKey);
     
-    const depositIx = await program.methods
+    const signature = await program.methods
       .deposit(new BN(amount))
-      .accounts({
+      .accountsPartial({
         user: wallet.publicKey,
         pool: poolPda,
         userPosition: userPositionPda,
         userProfile: userProfilePda,
         userReward: userRewardPda,
         mintToken: mintToken,
-        userToken: userAta, // Add userToken which we added to the Rust contract
+        userToken: userAta,
         poolVault: poolVault,
         tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
       })
-      .instruction();
-
-    // Bundle Minting and Depositing to solve the "Multiple Signatures" and "Insufficient Funds" issues
-    const { createMintToInstruction, createAssociatedTokenAccountIdempotentInstruction } = await import('@solana/spl-token');
-    const { Keypair, Transaction } = await import('@solana/web3.js');
-    
-    // Devnet Mint Authority
-    const mintKeypair = Keypair.fromSecretKey(new Uint8Array([89,152,11,111,143,84,230,37,27,111,81,232,51,10,94,128,125,133,109,125,209,130,12,67,235,148,149,2,106,152,227,104,209,26,151,136,34,130,120,251,114,191,169,15,42,221,63,36,205,249,173,222,212,230,198,239,249,245,38,244,251,26,99,97]));
-
-    const tx = new Transaction().add(
-      createAssociatedTokenAccountIdempotentInstruction(
-        wallet.publicKey,
-        userAta,
-        wallet.publicKey,
-        mintToken
-      ),
-      createMintToInstruction(
-        mintToken,
-        userAta,
-        mintKeypair.publicKey,
-        amount * 2 // Mint exactly enough + buffer
-      ),
-      depositIx
-    );
-
-    const blockhash = await connection.getLatestBlockhash();
-    
-    // Gasless Demo Mode: Our backend keypair pays the transaction fee
-    tx.feePayer = mintKeypair.publicKey;
-    
-    // sendTransaction handles signing, partial signing, and sending safely.
-    const signature = await sendTransaction(tx, connection, {
-      signers: [mintKeypair]
-    });
-    
-    await connection.confirmTransaction({ signature, ...blockhash });
+      .rpc();
 
     return signature;
   };
@@ -130,9 +95,9 @@ export function useAnchorProgram() {
     const poolVault = getAssociatedTokenAddressSync(mintToken, poolPda, true);
     const userAta = getAssociatedTokenAddressSync(mintToken, wallet.publicKey);
     
-    const tx = await program.methods
+    const signature = await program.methods
       .withdraw(new BN(amount))
-      .accounts({
+      .accountsPartial({
         user: wallet.publicKey,
         userProfile: userProfilePda,
         userPosition: userPositionPda,
@@ -144,31 +109,24 @@ export function useAnchorProgram() {
         systemProgram: SystemProgram.programId,
         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
       })
-      .transaction();
-
-    const blockhash = await connection.getLatestBlockhash();
-    tx.recentBlockhash = blockhash.blockhash;
-    tx.feePayer = wallet.publicKey;
-
-    const signature = await sendTransaction(tx, connection);
-    await connection.confirmTransaction({ signature, ...blockhash });
+      .rpc();
 
     return signature;
   };
 
-  const togglePrivate = async () => {
-    if (!program || !wallet) return;
+  // const togglePrivate = async () => {
+  //   if (!program || !wallet) return;
 
-    const { userProfilePda } = getPdas(wallet.publicKey, "");
+  //   const { userProfilePda } = getPdas(wallet.publicKey, "");
     
-    return await program.methods
-      .togglePrivate()
-      .accounts({
-        user: wallet.publicKey,
-        userProfile: userProfilePda,
-      })
-      .rpc();
-  };
+  //   return await program.methods
+  //     .togglePrivate()
+  //     .accountsPartial({
+  //       user: wallet.publicKey,
+  //       userProfile: userProfilePda,
+  //     })
+  //     .rpc();
+  // };
 
   const recordAction = async (amount: number) => {
     if (!program || !wallet) return;
@@ -177,7 +135,7 @@ export function useAnchorProgram() {
     
     return await program.methods
       .recordAction(new BN(amount))
-      .accounts({
+      .accountsPartial({
         user: wallet.publicKey,
         userReward: userRewardPda,
         systemProgram: SystemProgram.programId,
@@ -211,8 +169,9 @@ export function useAnchorProgram() {
     initializeUser, 
     deposit,
     withdraw,
-    togglePrivate,
+    // togglePrivate,
     recordAction,
-    getUserPositions
+    getUserPositions,
+    connection
   };
 }

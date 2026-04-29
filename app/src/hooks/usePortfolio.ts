@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useWallet, useConnection } from '@solana/wallet-adapter-react';
-import { LAMPORTS_PER_SOL, PublicKey } from '@solana/web3.js';
+import { LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
 
 export function usePortfolio() {
@@ -20,86 +20,99 @@ export function usePortfolio() {
       setLoading(true);
       setError(null);
       try {
-        // 1. Try Zerion (Mainnet biased)
-        let zerionData = null;
+        // 1. Fetch SOL price server-side (avoids CORS)
+        let solPrice = 145.00;
         try {
-          const response = await fetch(`/api/portfolio?address=${publicKey.toBase58()}`);
-          if (response.ok) {
-            const json = await response.json();
-            zerionData = json.data;
-          }
-        } catch (e) {
-          console.warn('Zerion fetch failed, falling back to RPC');
-        }
-
-        // 2. Fetch LIVE SOL Price from Jupiter
-        let solPrice = 145.00; // Fallback
-        try {
-          const priceRes = await fetch('https://api.jup.ag/price/v2?ids=So11111111111111111111111111111111111111112');
+          const priceRes = await fetch('/api/price');
           if (priceRes.ok) {
             const priceJson = await priceRes.json();
-            solPrice = priceJson.data?.So11111111111111111111111111111111111111112?.price || 145.00;
+            solPrice = priceJson.price ?? 145.00;
           }
-        } catch (e) {
-          console.warn('Jupiter price fetch failed');
+        } catch {
+          console.warn('SOL price fetch failed, using fallback');
         }
 
-        // 3. Fetch Native SOL Balance
+        // 2. Native SOL balance
         const solBalance = await connection.getBalance(publicKey);
+        const solAmount = solBalance / LAMPORTS_PER_SOL;
 
-        // 4. Fetch SPL Token Accounts
+        // 3. All SPL token accounts on devnet
         const tokenAccounts = await connection.getParsedTokenAccountsByOwner(publicKey, {
           programId: TOKEN_PROGRAM_ID,
         });
 
-        const splPositions = tokenAccounts.value.map((tokenAccount) => {
+        const nonZero = tokenAccounts.value.filter(
+          (ta) => (ta.account.data.parsed.info.tokenAmount.uiAmount ?? 0) > 0
+        );
+
+        const mints = nonZero.map((ta) => ta.account.data.parsed.info.mint as string);
+
+        // 4. Batch-resolve Metaplex metadata server-side
+        let metadataMap: Record<string, { name: string; symbol: string } | null> = {};
+        if (mints.length > 0) {
+          try {
+            const metaRes = await fetch('/api/token-metadata', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ mints }),
+            });
+            if (metaRes.ok) {
+              metadataMap = await metaRes.json();
+            }
+          } catch {
+            console.warn('Token metadata fetch failed');
+          }
+        }
+
+        // 5. Build SPL positions with real or fallback labels
+        const splPositions = nonZero.map((tokenAccount) => {
           const info = tokenAccount.account.data.parsed.info;
-          const mint = info.mint;
-          const amount = info.tokenAmount.uiAmount;
-          
+          const mint: string = info.mint;
+          const amount: number = info.tokenAmount.uiAmount ?? 0;
+          const meta = metadataMap[mint];
+
+          const hasRealName = !!meta?.name;
+
           return {
             attributes: {
+              mint,
+              isDevnet: true,
+              hasMetadata: hasRealName,
               fungible_info: {
-                symbol: mint.slice(0, 4).toUpperCase(),
-                name: `Token ${mint.slice(0, 6)}`,
+                symbol: hasRealName ? meta!.symbol : mint.slice(0, 4).toUpperCase(),
+                name: hasRealName ? meta!.name : 'Unknown Token',
               },
-              quantity: {
-                float: amount
-              },
-              value: 0 
-            }
+              quantity: { float: amount },
+              value: 0, // devnet SPL tokens have no real USD value
+            },
           };
-        }).filter(p => p.attributes.quantity.float > 0);
+        });
 
-        // 5. Construct the Final Hybrid Structure
-        if (zerionData && zerionData.attributes?.positions?.length > 0) {
-          setData(zerionData);
-        } else {
-          const solPosition = {
-            attributes: {
-              fungible_info: {
-                symbol: 'SOL',
-                name: 'Solana',
-              },
-              quantity: {
-                float: solBalance / LAMPORTS_PER_SOL
-              },
-              value: (solBalance / LAMPORTS_PER_SOL) * solPrice
-            }
-          };
+        // 6. SOL position (real price)
+        const solPosition = {
+          attributes: {
+            mint: 'So11111111111111111111111111111111111111112',
+            isDevnet: false,
+            hasMetadata: true,
+            fungible_info: {
+              symbol: 'SOL',
+              name: 'Solana',
+            },
+            quantity: { float: solAmount },
+            value: solAmount * solPrice,
+          },
+        };
 
-          const allPositions = [solPosition, ...splPositions];
-          const totalValue = allPositions.reduce((acc, p) => acc + (p.attributes.value || 0), 0);
+        const allPositions = [solPosition, ...splPositions];
+        const totalValue = solAmount * solPrice;
 
-          setData({
-            attributes: {
-              total: {
-                positions: totalValue
-              },
-              positions: allPositions
-            }
-          });
-        }
+        setData({
+          attributes: {
+            total: { positions: totalValue },
+            positions: allPositions,
+          },
+          meta: { network: 'devnet', solPrice },
+        });
       } catch (err: any) {
         setError(err.message);
       } finally {

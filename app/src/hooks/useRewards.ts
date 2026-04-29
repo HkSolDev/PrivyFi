@@ -5,7 +5,7 @@ import { useAnchorProgram } from './useAnchorProgram';
 import { PublicKey } from '@solana/web3.js';
 
 export function useRewards() {
-  const { program, wallet, getPdas, recordAction } = useAnchorProgram();
+  const { program, wallet, getPdas, recordAction, initializeUser } = useAnchorProgram();
   const [points, setPoints] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(true);
 

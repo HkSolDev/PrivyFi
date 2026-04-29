@@ -1,6 +1,6 @@
 'use client';
 
-import { Wallet, PieChart, ArrowUpRight, TrendingUp, Loader2 } from 'lucide-react';
+import { Wallet, PieChart, TrendingUp, Loader2, FlaskConical } from 'lucide-react';
 import { usePortfolio } from '@/hooks/usePortfolio';
 import { useAnchorProgram } from '@/hooks/useAnchorProgram';
 import { useEffect, useState } from 'react';
@@ -34,47 +34,50 @@ export default function PortfolioView() {
     fetchStaked();
   }, [wallet]);
 
-  // Map Zerion positions to our ASSETS structure
+  // Map positions from the hook — no fake names, devnet-aware
   const positions = data?.attributes?.positions || [];
-  
-  const cryptoMocks = [
-    { name: 'Jupiter', symbol: 'JUP', color: 'bg-green-500' },
-    { name: 'Pyth Network', symbol: 'PYTH', color: 'bg-blue-500' },
-    { name: 'Bonk', symbol: 'BONK', color: 'bg-orange-500' },
-    { name: 'Dogwifhat', symbol: 'WIF', color: 'bg-pink-500' },
-    { name: 'Jito', symbol: 'JTO', color: 'bg-teal-500' },
-    { name: 'Render', symbol: 'RNDR', color: 'bg-red-500' },
-    { name: 'Helium', symbol: 'HNT', color: 'bg-gray-500' },
-    { name: 'Raydium', symbol: 'RAY', color: 'bg-indigo-500' },
-  ];
+  const solPrice = data?.meta?.solPrice;
 
   const mappedAssets = positions
-    .filter((pos: any) => {
-      const valueStr = pos.attributes?.value?.toString() || '0';
-      // Only keep tokens with at least some tiny devnet balance
-      return parseFloat(valueStr) >= 0; 
-    })
-    .map((pos: any, i: number) => {
-      const originalName = pos.attributes?.fungible_info?.name || 'Unknown';
-      const isDevnetJunk = originalName.startsWith('Token ') || originalName === 'Unknown';
-      
-      const mock = cryptoMocks[i % cryptoMocks.length];
-      
+    .filter((pos: any) => pos.attributes?.quantity?.float > 0)
+    .map((pos: any) => {
+      const isSol = pos.attributes?.fungible_info?.symbol === 'SOL';
+      const isDevnet = pos.attributes?.isDevnet ?? true;
+      const hasMetadata = pos.attributes?.hasMetadata ?? false;
+      const amount = pos.attributes?.quantity?.float ?? 0;
+      const value = pos.attributes?.value ?? 0;
+
+      // A token is "unknown" only if it's devnet AND has no on-chain metadata
+      const isUnknown = isDevnet && !isSol && !hasMetadata;
+
       return {
-        symbol: isDevnetJunk ? mock.symbol : (pos.attributes?.fungible_info?.symbol || '?'),
-        name: isDevnetJunk ? mock.name : originalName,
-        amount: pos.attributes?.quantity?.float?.toLocaleString() || '0',
-        value: pos.attributes?.value ? `$${pos.attributes.value.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : `$${(Math.random() * 100).toFixed(2)}`,
-        allocation: 'N/A',
-        color: isDevnetJunk ? mock.color : 'bg-purple-500',
+        symbol: pos.attributes?.fungible_info?.symbol || '???',
+        name: pos.attributes?.fungible_info?.name || 'Unknown Token',
+        mint: pos.attributes?.mint || '',
+        amount: amount.toLocaleString(undefined, { maximumFractionDigits: 4 }),
+        value: isSol
+          ? `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+          : '$0.00',
+        isSol,
+        isDevnet,
+        hasMetadata,
+        isUnknown,
+        color: isSol
+          ? 'bg-gradient-to-br from-purple-500 to-indigo-600'
+          : hasMetadata
+          ? 'bg-gradient-to-br from-cyan-600 to-blue-700'
+          : 'bg-white/10',
       };
-    }).slice(0, 8); // Limit to top 8 to look clean
+    })
+    .slice(0, 10);
 
 
-  // Combine Zerion assets with PrivyFi staked positions
   const allAssets = [...stakedPositions, ...mappedAssets];
 
-  const totalValue = data?.attributes?.total?.positions ? `$${data.attributes.total.positions.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '$0.00';
+  // Only SOL has a real price on devnet
+  const totalValue = data?.attributes?.total?.positions
+    ? `$${data.attributes.total.positions.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    : '$0.00';
 
   if (loading) {
     return (
@@ -123,25 +126,43 @@ export default function PortfolioView() {
                 <tbody className="divide-y divide-white/5">
                   {allAssets.map((asset: any, i: number) => (
                     <tr key={i} className={`group hover:bg-white/[0.02] transition-colors ${asset.isStaked ? 'bg-green-500/[0.03]' : ''}`}>
-                      <td className="py-6">
+                      <td className="py-5">
                         <div className="flex items-center gap-4">
-                          <div className={`w-10 h-10 ${asset.color} rounded-xl flex items-center justify-center font-bold text-xs shadow-lg relative`}>
+                          <div className={`w-10 h-10 ${asset.color} rounded-xl flex items-center justify-center font-bold text-xs shadow-lg relative text-white`}>
                             {asset.symbol.slice(0, 3)}
                             {asset.isStaked && (
                               <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full border-2 border-black"></div>
                             )}
                           </div>
                           <div>
-                            <p className="font-bold flex items-center gap-2">
+                            <p className="font-bold flex items-center gap-2 flex-wrap">
                               {asset.name}
                               {asset.isStaked && <span className="text-[10px] bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full">Staked in PrivyFi</span>}
+                              {asset.isUnknown && (
+                                <span className="text-[10px] bg-yellow-500/15 text-yellow-400 border border-yellow-500/20 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                  <FlaskConical size={9} /> Devnet
+                                </span>
+                              )}
+                              {asset.isDevnet && !asset.isUnknown && !asset.isStaked && !asset.isSol && (
+                                <span className="text-[10px] bg-cyan-500/15 text-cyan-400 border border-cyan-500/20 px-2 py-0.5 rounded-full">
+                                  Testnet
+                                </span>
+                              )}
                             </p>
-                            <p className="text-[10px] text-gray-500 font-bold">{asset.symbol}</p>
+                            <p className="text-[10px] text-gray-500 font-mono mt-0.5">
+                              {asset.isUnknown
+                                ? `${asset.mint.slice(0, 8)}...${asset.mint.slice(-4)}`
+                                : asset.symbol}
+                            </p>
                           </div>
                         </div>
                       </td>
-                      <td className="py-6 font-bold">{asset.amount}</td>
-                      <td className="py-6 font-bold">{asset.value}</td>
+                      <td className="py-5 font-bold">{asset.amount}</td>
+                      <td className="py-5 font-bold">
+                        {asset.isDevnet && !asset.isStaked
+                          ? <span className="text-gray-500">$0.00 <span className="text-[10px] font-normal">(devnet)</span></span>
+                          : asset.value}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

@@ -7,6 +7,7 @@ import { useRewards } from '@/hooks/useRewards';
 import { useAnchorProgram } from '@/hooks/useAnchorProgram';
 import { useEffect } from 'react';
 import YieldDetailsModal from '@/components/modals/YieldDetailsModal';
+import { Button } from '@/components/ui/button';
 
 export default function YieldView() {
   const { strategies, loading, error, refresh } = useYield();
@@ -114,13 +115,15 @@ export default function YieldView() {
               />
             </div>
             
-            <button 
+            <Button 
+              variant="outline"
+              size="icon"
               onClick={refresh}
               disabled={loading}
-              className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center hover:bg-white/10 transition-colors border border-white/5 disabled:opacity-50"
+              className="w-10 h-10 rounded-xl bg-white/5 border-white/5 hover:bg-white/10 text-white"
             >
               <RefreshCcw size={18} className={loading ? 'animate-spin' : ''} />
-            </button>
+            </Button>
             <span className="bg-purple-500/10 text-purple-400 px-3 py-1 rounded-full text-xs font-bold border border-purple-500/20 flex items-center gap-2">
               <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
               Live
@@ -131,17 +134,18 @@ export default function YieldView() {
         {/* Filter Chips */}
         <div className="flex gap-2 mb-8 overflow-x-auto pb-2">
           {['All', 'SOL', 'Stable', 'PUSD', 'High Yield'].map((filter) => (
-            <button
+            <Button
               key={filter}
               onClick={() => setActiveFilter(filter)}
-              className={`px-5 py-2 rounded-full text-xs font-bold transition-all border ${
+              variant={activeFilter === filter ? 'default' : 'outline'}
+              className={`rounded-full px-5 h-9 text-xs font-bold transition-all border ${
                 activeFilter === filter 
-                ? 'bg-purple-500 text-white border-purple-400 shadow-lg shadow-purple-500/20' 
-                : 'bg-white/5 text-gray-400 border-white/5 hover:bg-white/10'
+                ? 'bg-purple-500 text-white border-purple-400 shadow-lg shadow-purple-500/20 hover:bg-purple-600' 
+                : 'bg-white/5 text-gray-400 border-white/5 hover:bg-white/10 hover:text-white'
               }`}
             >
               {filter}
-            </button>
+            </Button>
           ))}
         </div>
         
@@ -188,9 +192,9 @@ export default function YieldView() {
                     <p className="text-xs text-gray-500 uppercase font-bold tracking-widest mb-1">APY</p>
                     <p className="text-2xl font-black text-purple-400">{strat.apy}</p>
                   </div>
-                  <button className="bg-white text-black px-8 py-3 rounded-xl font-bold hover:scale-105 transition-transform flex items-center gap-2 shadow-lg">
-                    Deposit <ArrowRight size={18} />
-                  </button>
+                  <Button className="bg-white text-black px-8 py-6 rounded-xl font-bold hover:scale-105 hover:bg-gray-100 transition-transform shadow-lg group">
+                    Deposit <ArrowRight size={18} className="ml-1 group-hover:translate-x-1 transition-transform" />
+                  </Button>
                 </div>
               </div>
             ))
