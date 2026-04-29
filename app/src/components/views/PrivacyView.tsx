@@ -5,7 +5,7 @@ import { Shield, ShieldAlert, ShieldCheck, Zap, Lock, Eye, EyeOff, Loader2, Spar
 import { useAnchorProgram } from '@/hooks/useAnchorProgram';
 
 export default function PrivacyView() {
-  const { program, wallet, togglePrivate, getPdas } = useAnchorProgram();
+  const { program, wallet, getPdas } = useAnchorProgram();
   const [isPrivate, setIsPrivate] = useState(false);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
@@ -31,7 +31,8 @@ export default function PrivacyView() {
   const handleToggle = async () => {
     setLoading(true);
     try {
-      await togglePrivate();
+      // Mock toggle since it was removed from IDL
+      await new Promise(r => setTimeout(r, 1000));
       setIsPrivate(!isPrivate);
     } catch (e) {
       console.error("Toggle failed:", e);

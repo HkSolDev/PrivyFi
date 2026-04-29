@@ -13,10 +13,16 @@ async function main() {
   const idl = JSON.parse(idlStr);
   const program = new anchor.Program(idl, provider);
   
-  const mockMint = new PublicKey("D7cz4o6bMYFSP1tRxMcfivpKj4HSApc1qfQnub2S72Ca"); // Custom Devnet Mint
+  const MINTS = {
+    USDC: new PublicKey("Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr"),
+    SOL: new PublicKey("So11111111111111111111111111111111111111112"),
+    PUSD: new PublicKey("D7cz4o6bMYFSP1tRxMcfivpKj4HSApc1qfQnub2S72Ca") // Mock for now
+  };
 
   const pools = [
-    { name: "Kamino SOL Supply", apy: 745 }, 
+    { name: "Kamino SOL Supply", apy: 745, mint: MINTS.SOL },
+    { name: "PUSD Stable Vault", apy: 1850, mint: MINTS.PUSD },
+    { name: "USDC High Yield", apy: 1250, mint: MINTS.USDC },
   ];
 
   for (const pool of pools) {
@@ -25,7 +31,7 @@ async function main() {
       program.programId
     );
     
-    const poolVault = getAssociatedTokenAddressSync(mockMint, poolPda, true);
+    const poolVault = getAssociatedTokenAddressSync(pool.mint, poolPda, true);
 
     console.log(`Initializing pool: ${pool.name} at ${poolPda.toBase58()}`);
 
@@ -35,7 +41,7 @@ async function main() {
         .accounts({
           signer: provider.wallet.publicKey,
           pool: poolPda,
-          mintToken: mockMint,
+          mintToken: pool.mint,
           poolVault: poolVault,
           tokenProgram: TOKEN_PROGRAM_ID,
           associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
