@@ -8,6 +8,9 @@ import { PublicKey } from '@solana/web3.js';
 import { toast } from 'sonner'; // Assuming sonner is available or I'll use a simple alert
 import { useAIRecommendation } from '@/hooks/useAIRecommendation';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { usePortfolio } from '@/hooks/usePortfolio';
+import { getPersona, getConsensusLabel, SPECIALTY_STYLES, Specialty } from '@/lib/model-personas';
 
 interface YieldDetailsModalProps {
   strategy: any;
@@ -18,38 +21,56 @@ interface YieldDetailsModalProps {
 export default function YieldDetailsModal({ strategy, isOpen, onClose }: YieldDetailsModalProps) {
   const [isDepositing, setIsDepositing] = useState(false);
   const [isWithdrawing, setIsWithdrawing] = useState(false);
+  const [isFauceting, setIsFauceting] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [selectedTab, setSelectedTab] = useState<'All' | Specialty>('All');
+  const [showAllVotes, setShowAllVotes] = useState(false);
 
   const { analyzeStrategy, recommendation, loading: loadingAi, reset: resetAi, loadFromCache } = useAIRecommendation();
-  const { deposit, withdraw, initializeUser, program, wallet, getPdas, connection } = useAnchorProgram();
-  const [currentStake, setCurrentStake] = useState(0);
-  const [tokenBalance, setTokenBalance] = useState<number | null>(null);
+  const { deposit, withdraw, initializeUser, initializePool, program, wallet, getPdas, connection } = useAnchorProgram();
+  const { tokens: portfolioTokens, tokensLoading, refreshPortfolio } = usePortfolio();
+  
+  const [currentStake, setCurrentStake] = useState<number>(0);
+  const [depositAmount, setDepositAmount] = useState<string>('10');
 
   const MINT_ADDRESSES: Record<string, string> = {
-    'USDC': 'Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr',
+    'USDC': process.env.NEXT_PUBLIC_FAKE_USDC_MINT || 'Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr',
     'SOL': 'So11111111111111111111111111111111111111112',
-    'PUSD': 'D7cz4o6bMYFSP1tRxMcfivpKj4HSApc1qfQnub2S72Ca', // Mock for now
+    'PUSD': process.env.NEXT_PUBLIC_FAKE_PUSD_MINT || '9m4cLdJAGDgsuwHwu1up2avvatfmiSzgMa6aarHR135N', 
+    'AUDD': process.env.NEXT_PUBLIC_FAKE_AUDD_MINT || 'HX4ENGDHv2F5cvWrBWAhdnEYQkA1U645G6LUs5uiWsQ',
+  };
+
+  const TOKEN_PROGRAMS: Record<string, string> = {
+    'USDC': 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
+    'SOL': 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
+    'PUSD': 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb', // Token-2022
+    'AUDD': 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb', // Token-2022
   };
 
   const FAUCET_LINKS: Record<string, string> = {
-    'USDC': 'https://solana.com/faucet', // General faucet handles USDC on devnet too often
+    'USDC': 'https://solana.com/faucet', 
     'SOL': 'https://faucet.solana.com/',
-    'PUSD': 'https://faucet.palm.io/', // Placeholder
+    'PUSD': `https://explorer.solana.com/address/${MINT_ADDRESSES.PUSD}?cluster=devnet`,
+    'AUDD': `https://explorer.solana.com/address/${MINT_ADDRESSES.AUDD}?cluster=devnet`,
   };
 
   const getTokenInfo = () => {
     const name = strategy?.name || '';
-    if (name.includes('USDC')) return { mint: MINT_ADDRESSES.USDC, faucet: FAUCET_LINKS.USDC, symbol: 'USDC' };
-    if (name.includes('SOL')) return { mint: MINT_ADDRESSES.SOL, faucet: FAUCET_LINKS.SOL, symbol: 'SOL' };
-    if (name.includes('PUSD')) return { mint: MINT_ADDRESSES.PUSD, faucet: FAUCET_LINKS.PUSD, symbol: 'PUSD' };
-    return { mint: MINT_ADDRESSES.USDC, faucet: FAUCET_LINKS.USDC, symbol: 'USDC' }; // Default
+    if (name.includes('USDC')) return { mint: MINT_ADDRESSES.USDC, faucet: FAUCET_LINKS.USDC, symbol: 'USDC', programId: TOKEN_PROGRAMS.USDC };
+    if (name.includes('SOL')) return { mint: MINT_ADDRESSES.SOL, faucet: FAUCET_LINKS.SOL, symbol: 'SOL', programId: TOKEN_PROGRAMS.SOL };
+    if (name.includes('PUSD')) return { mint: MINT_ADDRESSES.PUSD, faucet: FAUCET_LINKS.PUSD, symbol: 'PUSD', programId: TOKEN_PROGRAMS.PUSD };
+    if (name.includes('AUDD')) return { mint: MINT_ADDRESSES.AUDD, faucet: FAUCET_LINKS.AUDD, symbol: 'AUDD', programId: TOKEN_PROGRAMS.AUDD };
+    return { mint: MINT_ADDRESSES.USDC, faucet: FAUCET_LINKS.USDC, symbol: 'USDC', programId: TOKEN_PROGRAMS.USDC };
   };
+
+  const tokenInfo = getTokenInfo();
+  const foundToken = portfolioTokens.find(t => t.mint === tokenInfo.mint);
+  const tokenBalance = foundToken ? foundToken.amount : 0;
+  const isBalanceLoading = tokensLoading && portfolioTokens.length === 0;
 
   useEffect(() => {
     async function init() {
       if (isOpen && strategy) {
-        // Fetch stake immediately so UI is responsive
-        // Fetch stake specifically for THIS pool
         if (wallet && program) {
           const { userPositionPda } = getPdas(wallet.publicKey, strategy.name);
           try {
@@ -58,21 +79,8 @@ export default function YieldDetailsModal({ strategy, isOpen, onClose }: YieldDe
           } catch (e) {
             setCurrentStake(0);
           }
-
-          // Fetch token balance
-          try {
-            const { mint } = getTokenInfo();
-            const { getAssociatedTokenAddressSync } = await import('@solana/spl-token');
-            const ata = getAssociatedTokenAddressSync(new PublicKey(mint), wallet.publicKey);
-            const balance = await connection.getTokenAccountBalance(ata);
-            setTokenBalance(balance.value.uiAmount);
-          } catch (e) {
-            setTokenBalance(0);
-          }
         }
         
-        // Try to restore from cache first (instant, no network call).
-        // If cache misses, reset so the user sees the 'Analyze' CTA.
         const cacheHit = loadFromCache(strategy);
         if (!cacheHit) {
           resetAi();
@@ -87,9 +95,61 @@ export default function YieldDetailsModal({ strategy, isOpen, onClose }: YieldDe
     await analyzeStrategy(strategy);
   };
 
+  const handleFaucet = async () => {
+    if (!wallet) return;
+    const { mint, symbol } = getTokenInfo();
+    if (symbol !== 'PUSD' && symbol !== 'AUDD') {
+      window.open(getTokenInfo().faucet, '_blank');
+      return;
+    }
+
+    setIsFauceting(true);
+    toast.info(`Requesting 1,000 ${symbol} from Faucet...`);
+    try {
+      const response = await fetch('/api/faucet', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          targetAddress: wallet.publicKey.toBase58(),
+          mintAddress: mint,
+        })
+      });
+
+      if (!response.ok) throw new Error("Faucet request failed");
+      toast.success(`Received 1,000 ${symbol}! Refreshing balance...`);
+      
+      // Poll to ensure the new balance is captured even if RPC is delayed
+      let checks = 0;
+      const interval = setInterval(() => {
+        refreshPortfolio();
+        checks++;
+        if (checks > 5) clearInterval(interval); // Poll every 3s for 15s
+      }, 3000);
+      
+      // Trigger an immediate refresh attempt
+      refreshPortfolio();
+
+    } catch (e: any) {
+      toast.error(`Faucet Error: ${e.message}`);
+    } finally {
+      setIsFauceting(false);
+    }
+  };
+
   const handleStartEarning = async () => {
     if (!wallet) {
       toast.error("Please connect your Solflare or Phantom wallet first!");
+      return;
+    }
+
+    const amountNum = parseFloat(depositAmount);
+    if (isNaN(amountNum) || amountNum <= 0) {
+      toast.error("Please enter a valid amount");
+      return;
+    }
+
+    if (tokenBalance !== null && amountNum > tokenBalance) {
+      toast.error("Insufficient balance");
       return;
     }
 
@@ -97,25 +157,37 @@ export default function YieldDetailsModal({ strategy, isOpen, onClose }: YieldDe
     try {
       try {
         await initializeUser();
-      } catch (e) {
-        console.log("User might already be initialized");
-      }
+      } catch (e) {}
 
-      console.log(`Routing swap via dFlow / Jupiter for ${strategy.name}...`);
       const poolName = strategy.name;
-      const { mint } = getTokenInfo();
+      const { mint, programId } = getTokenInfo();
       const mockMint = new PublicKey(mint);
 
-      toast.info(`Depositing ${strategy.name.includes('SOL') ? 'SOL' : 'tokens'} to vault...`);
-      const tx = await deposit(poolName, mockMint, 1000000); 
+      toast.info(`Depositing ${depositAmount} ${getTokenInfo().symbol} to vault...`);
+      // Convert to lamports (assuming 6 decimals for USDC/PUSD/AUDD)
+      const lamports = Math.floor(amountNum * 1_000_000);
       
-      console.log("Deposit successful:", tx);
+      try {
+        await deposit(poolName, mockMint, lamports);
+      } catch (depositError: any) {
+        // If the pool isn't initialized yet (e.g. for dynamic external strategies like ORCA),
+        // we catch the AccountNotInitialized error, initialize it, and retry.
+        if (depositError.message && (depositError.message.includes('AccountNotInitialized') || depositError.message.includes('3012'))) {
+          toast.info(`Initializing new strategy pool on-chain...`);
+          const apy = parseInt(strategy.apy) || 0;
+          await initializePool(poolName, mockMint, apy);
+          toast.info(`Pool ready! Retrying deposit...`);
+          await deposit(poolName, mockMint, lamports);
+        } else {
+          throw depositError; // Rethrow if it's a different error
+        }
+      }
+      
       toast.success("Deposit successful!");
       setSuccess(true);
-      setCurrentStake(prev => prev + 1); // locally increment for demo
+      setCurrentStake(prev => prev + amountNum); 
       setTimeout(() => setSuccess(false), 5000);
     } catch (e: any) {
-      console.error("Deposit failed:", e);
       toast.error(`Deposit failed: ${e.message || "Unknown error"}`);
     } finally {
       setIsDepositing(false);
@@ -124,15 +196,22 @@ export default function YieldDetailsModal({ strategy, isOpen, onClose }: YieldDe
 
   const handleWithdraw = async () => {
     if (!wallet) return;
+    const amountNum = parseFloat(depositAmount);
+    if (isNaN(amountNum) || amountNum <= 0) {
+      toast.error("Enter amount to withdraw");
+      return;
+    }
+
     setIsWithdrawing(true);
     try {
-      toast.info("Withdrawing from vault...");
+      toast.info(`Withdrawing ${depositAmount} from vault...`);
       const poolName = strategy.name;
       const { mint } = getTokenInfo();
       const mockMint = new PublicKey(mint);
-      const tx = await withdraw(poolName, mockMint, 1000000); 
+      const lamports = Math.floor(amountNum * 1_000_000);
+      const tx = await withdraw(poolName, mockMint, lamports); 
       toast.success("Withdraw successful!");
-      setCurrentStake(prev => Math.max(0, prev - 1)); // locally decrement
+      setCurrentStake(prev => Math.max(0, prev - amountNum));
     } catch (e: any) {
       toast.error(`Withdraw failed: ${e.message || "Unknown error"}`);
     } finally {
@@ -227,21 +306,46 @@ export default function YieldDetailsModal({ strategy, isOpen, onClose }: YieldDe
                 </Button>
               </div>
             ) : (
-              <div className="text-gray-300 leading-relaxed text-sm relative z-10 space-y-3">
-                <p><strong className={recommendation.recommended ? 'text-green-400' : 'text-orange-400'}>Reasoning:</strong> {recommendation.reasoning}</p>
-                <div className="flex items-center gap-4 pt-2">
-                  <div className="flex-1">
+              <div className="text-gray-300 leading-relaxed text-sm relative z-10 space-y-4">
+                {/* Reasoning bullets */}
+                <ul className="space-y-1.5">
+                  {(Array.isArray(recommendation.reasoning) ? recommendation.reasoning : [recommendation.reasoning]).map((reason: string, idx: number) => (
+                    <li key={idx} className="flex items-start gap-2">
+                      <span className={`mt-1 w-1.5 h-1.5 rounded-full flex-shrink-0 ${recommendation.recommended ? 'bg-green-400' : 'bg-orange-400'}`} />
+                      <span>{reason}</span>
+                    </li>
+                  ))}
+                </ul>
+
+                {/* Example return */}
+                {recommendation.exampleReturn && (
+                  <p className="text-xs text-purple-300 bg-purple-500/10 border border-purple-500/20 rounded-xl px-3 py-2 italic">
+                    💡 {recommendation.exampleReturn}
+                  </p>
+                )}
+
+                {/* Score bars */}
+                <div className="grid grid-cols-2 gap-4 pt-1">
+                  <div>
                     <div className="flex justify-between text-xs mb-1">
-                      <span className="text-gray-400">Confidence Score</span>
+                      <span className="text-gray-400">Confidence</span>
                       <span className="font-bold">{recommendation.confidenceScore}%</span>
                     </div>
-                    <div className="w-full bg-black/40 rounded-full h-2">
-                      <div className={`h-2 rounded-full ${recommendation.confidenceScore > 80 ? 'bg-green-500' : recommendation.confidenceScore > 50 ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${recommendation.confidenceScore}%` }}></div>
+                    <div className="w-full bg-black/40 rounded-full h-1.5">
+                      <div className={`h-1.5 rounded-full transition-all ${recommendation.confidenceScore > 80 ? 'bg-green-500' : recommendation.confidenceScore > 50 ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${recommendation.confidenceScore}%` }} />
                     </div>
                   </div>
-                  <div className="flex-1">
-                    <p className="text-xs text-gray-400 mb-1">Assessed Risk Level</p>
-                    <p className={`font-bold ${recommendation.riskLevel === 'Low' ? 'text-green-400' : recommendation.riskLevel === 'Medium' ? 'text-yellow-400' : 'text-orange-400'}`}>{recommendation.riskLevel}</p>
+                  <div>
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="text-gray-400">Risk Score</span>
+                      <span className="font-bold">{recommendation.riskScore ?? (recommendation.riskLevel === 'Low' ? 20 : recommendation.riskLevel === 'Medium' ? 50 : 80)}/100</span>
+                    </div>
+                    <div className="w-full bg-black/40 rounded-full h-1.5">
+                      <div
+                        className={`h-1.5 rounded-full transition-all ${(recommendation.riskScore ?? 50) < 35 ? 'bg-green-500' : (recommendation.riskScore ?? 50) < 65 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                        style={{ width: `${recommendation.riskScore ?? (recommendation.riskLevel === 'Low' ? 20 : recommendation.riskLevel === 'Medium' ? 50 : 80)}%` }}
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -252,20 +356,89 @@ export default function YieldDetailsModal({ strategy, isOpen, onClose }: YieldDe
             </div>
           </div>
 
-          {/* Educational Content */}
-          <div className="space-y-6">
-            <div>
-              <h4 className="font-bold flex items-center gap-2 mb-2 text-white">
-                <TrendingUp size={18} className="text-green-400" /> 
-                How you earn money
-              </h4>
-              <p className="text-sm text-gray-500 leading-relaxed">
-                By depositing into this pool, you are providing "Liquidity" to other traders. 
-                Every time someone swaps between these tokens, they pay a small fee. 
-                **That fee goes directly to you.** 
-              </p>
-            </div>
+          {/* Educational Content / Swarm Visualizer */}
+          {recommendation && (!recommendation.swarmVotes || recommendation.swarmVotes.length === 0) && (
+            <Button 
+              onClick={() => analyzeStrategy(strategy, undefined, 'swarm')}
+              disabled={loadingAi}
+              className="w-full mt-4 bg-purple-600/20 hover:bg-purple-600/40 text-purple-300 border border-purple-500/30 font-bold transition-all"
+            >
+              <Brain className="mr-2" size={18} /> Run Deep Research Swarm
+            </Button>
+          )}
 
+          {recommendation?.swarmVotes && recommendation.swarmVotes.length > 0 ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="font-bold flex items-center gap-2 text-white">
+                  <Brain size={18} className="text-purple-400" /> 
+                  AI Swarm Consensus
+                </h4>
+                {(() => {
+                  const mappedVotes = recommendation.swarmVotes.map((v: any) => ({ verdict: v.vote === 'Recommended' ? 'RECOMMENDED' : 'CAUTION' }));
+                  const consensus = getConsensusLabel(mappedVotes);
+                  return (
+                    <div className="px-3 py-1 rounded-full text-xs font-bold border" style={{ backgroundColor: `${consensus.color}20`, color: consensus.color, borderColor: `${consensus.color}40` }}>
+                      {consensus.label} WINNER
+                    </div>
+                  );
+                })()}
+              </div>
+              
+              <div className="flex flex-wrap gap-2 mb-4">
+                {['All', 'Risk', 'Yield', 'Speed', 'Stable', 'Deep'].map(tab => (
+                  <button
+                    key={tab}
+                    onClick={() => { setSelectedTab(tab as any); setShowAllVotes(false); }}
+                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-all ${
+                      selectedTab === tab 
+                        ? 'bg-purple-500 text-white shadow-lg shadow-purple-500/20' 
+                        : 'bg-white/5 text-gray-400 hover:bg-white/10'
+                    }`}
+                  >
+                    {tab}
+                  </button>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {recommendation.swarmVotes
+                  .map((v: any) => ({ ...v, persona: getPersona(v.model) }))
+                  .filter((v: any) => selectedTab === 'All' || v.persona.specialty === selectedTab)
+                  .slice(0, showAllVotes ? undefined : 4)
+                  .map((v: any, idx: number) => (
+                    <div key={idx} className="bg-white/5 border border-white/5 p-3 rounded-xl flex items-center justify-between hover:border-white/10 transition-colors">
+                      <div className="flex flex-col">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-sm">{v.persona.emoji}</span>
+                          <span className="text-xs font-bold" style={{ color: v.persona.color }}>{v.persona.name}</span>
+                        </div>
+                        <span className="text-[10px] text-gray-500 truncate max-w-[150px]">{v.persona.role}</span>
+                      </div>
+                      <div className="flex flex-col items-end gap-1">
+                        <div className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${
+                          v.vote === 'Recommended' ? 'bg-green-500/20 text-green-400' : 'bg-orange-500/20 text-orange-400'
+                        }`}>
+                          {v.vote}
+                        </div>
+                        <div className={`px-1.5 py-0.5 rounded text-[8px] font-bold uppercase ${SPECIALTY_STYLES[v.persona.specialty as Specialty]}`}>
+                          {v.persona.specialty}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+              
+              {recommendation.swarmVotes.filter((v: any) => selectedTab === 'All' || getPersona(v.model).specialty === selectedTab).length > 4 && (
+                <button 
+                  onClick={() => setShowAllVotes(!showAllVotes)}
+                  className="w-full py-2 bg-white/5 hover:bg-white/10 text-gray-400 text-xs font-bold rounded-xl transition-all"
+                >
+                  {showAllVotes ? 'Show Less' : `See all ${recommendation.swarmVotes.filter((v: any) => selectedTab === 'All' || getPersona(v.model).specialty === selectedTab).length} votes`}
+                </button>
+              )}
+            </div>
+          ) : (
             <div className="p-4 bg-orange-500/5 border border-orange-500/10 rounded-2xl">
               <h4 className="font-bold flex items-center gap-2 mb-2 text-orange-400">
                 <ShieldAlert size={18} /> 
@@ -276,6 +449,33 @@ export default function YieldDetailsModal({ strategy, isOpen, onClose }: YieldDe
                   ? "High APR usually means higher volatility. The price of these tokens might fluctuate significantly."
                   : "This is a more stable pool, but still carries smart contract risks."}
               </p>
+            </div>
+          )}
+          {/* Amount Input */}
+          <div className="bg-white/5 border border-white/10 rounded-3xl p-6 mt-8">
+            <div className="flex justify-between items-center mb-4">
+              <label className="text-sm font-bold text-gray-400">Amount to Invest</label>
+              <div className="text-xs text-purple-400 font-medium">
+                Balance: {isBalanceLoading ? 'Loading...' : `${tokenBalance.toLocaleString()} ${tokenInfo.symbol}`}
+              </div>
+            </div>
+            
+            <div className="relative">
+              <Input 
+                type="number" 
+                value={depositAmount}
+                onChange={(e) => setDepositAmount(e.target.value)}
+                placeholder="0.00"
+                className="w-full bg-black/40 border border-white/10 rounded-2xl py-8 px-6 text-2xl font-black text-white focus:outline-none focus:border-purple-500/50 transition-all h-auto"
+              />
+              <button 
+                onClick={() => {
+                  if (tokenBalance !== null) setDepositAmount(tokenBalance.toString());
+                }}
+                className="absolute right-4 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-purple-500/20 text-purple-400 text-[10px] font-black rounded-lg hover:bg-purple-500/40 transition-all border border-purple-500/20"
+              >
+                MAX
+              </button>
             </div>
           </div>
         </div>
@@ -309,22 +509,34 @@ export default function YieldDetailsModal({ strategy, isOpen, onClose }: YieldDe
                 {isWithdrawing ? <Loader2 className="animate-spin" size={16} /> : 'Withdraw'}
               </Button>
             )}
-            {tokenBalance === 0 ? (
-              <a 
-                href={getTokenInfo().faucet}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex-1 md:flex-none px-10 py-4 rounded-2xl bg-yellow-500 text-black font-black hover:scale-105 active:scale-95 transition-all text-center flex items-center justify-center gap-2"
-              >
-                Get Devnet {getTokenInfo().symbol} (Faucet)
-              </a>
-            ) : !recommendation ? (
+            {tokenBalance === 0 && !isBalanceLoading ? (
+              (tokenInfo.symbol === 'PUSD' || tokenInfo.symbol === 'AUDD') ? (
+                <Button 
+                  onClick={handleFaucet}
+                  disabled={isFauceting}
+                  className="flex-1 md:flex-none px-10 py-6 rounded-2xl bg-yellow-500 text-black font-black hover:scale-105 active:scale-95 transition-all text-center flex items-center justify-center gap-2 h-auto"
+                >
+                  {isFauceting ? <Loader2 className="animate-spin" size={20} /> : <Zap size={20} />}
+                  Get Devnet {tokenInfo.symbol} (Airdrop)
+                </Button>
+              ) : (
+                <a 
+                  href={tokenInfo.faucet}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 md:flex-none px-10 py-4 rounded-2xl bg-yellow-500 text-black font-black hover:scale-105 active:scale-95 transition-all text-center flex items-center justify-center gap-2"
+                >
+                  Get Devnet {tokenInfo.symbol} (Faucet)
+                </a>
+              )
+            ) : (!recommendation || isBalanceLoading) ? (
               <Button 
                 disabled={true}
                 variant="secondary"
                 className="flex-1 md:flex-none px-10 py-6 rounded-2xl font-black bg-white/10 text-gray-500 cursor-not-allowed flex items-center justify-center gap-2 h-auto"
               >
-                <Lock size={20} /> Locked
+                {isBalanceLoading ? <Loader2 className="animate-spin" size={20} /> : <Lock size={20} />}
+                {isBalanceLoading ? 'Syncing...' : 'Locked'}
               </Button>
             ) : (
               <Button 

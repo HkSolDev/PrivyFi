@@ -4,6 +4,9 @@ pub mod initialize_user;
 pub mod record_action;
 pub mod toggle_private;
 pub mod withdraw;
+pub mod initialize_faucet;
+pub mod request_faucet;
+pub mod update_yields;
 
 pub use deposit::*;
 pub use initialize_pool::*;
@@ -11,3 +14,6 @@ pub use initialize_user::*;
 pub use record_action::*;
 pub use toggle_private::*;
 pub use withdraw::*;
+pub use initialize_faucet::*;
+pub use request_faucet::*;
+pub use update_yields::*;

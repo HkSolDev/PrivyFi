@@ -8,4 +8,6 @@ pub enum PrivyFiError {
     InsufficientBalance,
     #[msg("Arithmetic overflow — amount too large")]
     Overflow,
+    #[msg("You are not authorized to update yields")]
+    Unauthorized,
 }

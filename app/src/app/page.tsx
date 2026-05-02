@@ -9,61 +9,33 @@ import {
   Lock, 
   ShieldCheck, 
   MessageSquare,
-  ArrowUpRight,
   Settings,
   Bell,
-  User,
-  Send,
-  Loader2,
-  Menu,
-  X
+  Target
 } from 'lucide-react';
-import { useState, useEffect, useRef } from 'react';
-import ReactMarkdown from 'react-markdown';
+import { useState, useEffect } from 'react';
 
 // Import Views
 import DashboardView from '@/components/views/DashboardView';
 import PortfolioView from '@/components/views/PortfolioView';
 import YieldView from '@/components/views/YieldView';
 import PrivacyView from '@/components/views/PrivacyView';
+import VaultsView from '@/components/views/VaultsView';
+import PredictView from '@/components/views/PredictView';
+import AISwarmConsensus from '@/components/AISwarmConsensus';
 
-// Import Hooks
-import { useAI } from '@/hooks/useAI';
-import { useRewards } from '@/hooks/useRewards';
-
-type ViewType = 'dashboard' | 'portfolio' | 'yield' | 'vaults' | 'privacy' | 'settings';
+type ViewType = 'dashboard' | 'portfolio' | 'yield' | 'vaults' | 'privacy' | 'settings' | 'predict';
 
 export default function Home() {
   const { connected } = useWallet();
   const [isMounted, setIsMounted] = useState(false);
   const [activeTab, setActiveTab] = useState<ViewType>('dashboard');
-  const [input, setInput] = useState('');
-  
-  const { messages, sendMessage, loading: aiLoading } = useAI();
-  const { addPoints } = useRewards();
-  const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
-  // Auto-scroll chat to bottom
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [messages, aiLoading]);
-
   if (!isMounted) return null;
-
-  const handleSend = async () => {
-    if (!input.trim() || aiLoading) return;
-    const currentInput = input;
-    setInput('');
-    await sendMessage(currentInput);
-    // Add points for interacting with AI
-    await addPoints(10); 
-  };
 
   const renderView = () => {
     switch (activeTab) {
@@ -73,6 +45,10 @@ export default function Home() {
         return <PortfolioView />;
       case 'yield':
         return <YieldView />;
+      case 'predict':
+        return <PredictView />;
+      case 'vaults':
+        return <VaultsView />;
       case 'privacy':
         return <PrivacyView />;
       default:
@@ -113,6 +89,12 @@ export default function Home() {
             label="Yield" 
             active={activeTab === 'yield'} 
             onClick={() => setActiveTab('yield')}
+          />
+          <NavItem 
+            icon={<Target size={20} />} 
+            label="Predict" 
+            active={activeTab === 'predict'} 
+            onClick={() => setActiveTab('predict')}
           />
           <NavItem 
             icon={<Lock size={20} />} 
@@ -190,64 +172,9 @@ export default function Home() {
           )}
         </div>
 
-        {/* Right Side: AI Advisor Sidebar - Desktop Only */}
+        {/* Right Side: AI Swarm Consensus Sidebar - Desktop Only */}
         <div className="hidden xl:flex w-96 border-l border-white/5 p-8 flex-col gap-6 bg-[#0d0d12]/20 backdrop-blur-2xl">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 bg-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-purple-500/20">
-              <MessageSquare size={20} className="text-white" />
-            </div>
-            <div>
-              <h3 className="text-lg font-bold tracking-tight">AI Advisor</h3>
-              <p className="text-[10px] text-purple-400 font-black uppercase tracking-widest">Llama 3.3</p>
-            </div>
-          </div>
-          
-          <div 
-            ref={scrollRef}
-            className="flex-1 flex flex-col gap-4 overflow-y-auto pr-2 custom-scrollbar"
-          >
-            {messages.length === 0 ? (
-              <ChatBubble 
-                type="bot" 
-                message={`Hi there! I'm your PrivyFi advisor. ${connected ? "I've analyzed your portfolio—how can I help you optimize your yield today?" : "Connect your wallet so I can analyze your holdings."}`} 
-              />
-            ) : (
-              messages.map((msg, i) => (
-                <ChatBubble 
-                  key={i} 
-                  type={msg.role === 'assistant' ? 'bot' : 'user'} 
-                  message={msg.content} 
-                />
-              ))
-            )}
-            {aiLoading && (
-              <div className="flex justify-start">
-                <div className="bg-white/5 border border-white/5 p-4 rounded-2xl rounded-bl-none">
-                  <Loader2 className="text-purple-400 animate-spin" size={18} />
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="mt-auto">
-            <div className="relative">
-              <input 
-                type="text" 
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                placeholder="Ask Privy anything..." 
-                className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-5 pr-14 focus:outline-none focus:border-purple-500/50 transition-all text-sm"
-              />
-              <button 
-                onClick={handleSend}
-                disabled={aiLoading}
-                className="absolute right-3 top-1/2 -translate-y-1/2 p-2 hover:bg-white/10 rounded-lg transition-colors disabled:opacity-50"
-              >
-                <ArrowUpRight size={18} className="text-purple-400" />
-              </button>
-            </div>
-          </div>
+          <AISwarmConsensus />
         </div>
       </main>
 
@@ -269,9 +196,9 @@ export default function Home() {
           onClick={() => setActiveTab('yield')}
         />
         <MobileNavItem 
-          icon={<MessageSquare size={20} />} 
-          active={activeTab === 'settings'} 
-          onClick={() => setActiveTab('settings')} // Mock for AI on mobile
+          icon={<Target size={20} />} 
+          active={activeTab === 'predict'} 
+          onClick={() => setActiveTab('predict')}
         />
       </nav>
     </div>
@@ -303,29 +230,6 @@ function NavItem({ icon, label, active = false, onClick }: { icon: React.ReactNo
     >
       <span className={`${active ? 'text-purple-400' : 'group-hover:text-purple-400 transition-colors'}`}>{icon}</span>
       <span className="text-sm">{label}</span>
-    </div>
-  );
-}
-
-function ChatBubble({ type, message }: { type: 'bot' | 'user', message: string }) {
-  return (
-    <div className={`flex ${type === 'bot' ? 'justify-start' : 'justify-end'}`}>
-      <div className={`max-w-[95%] p-4 rounded-2xl text-sm leading-relaxed ${
-        type === 'bot' 
-          ? 'bg-white/5 border border-white/5 text-gray-300 rounded-bl-none' 
-          : 'bg-purple-600 text-white rounded-br-none font-bold'
-      }`}>
-        <div className="flex gap-3">
-          {type === 'bot' && (
-            <div className="w-6 h-6 bg-purple-500/20 rounded-lg flex-shrink-0 flex items-center justify-center">
-              <ShieldCheck size={14} className="text-purple-400" />
-            </div>
-          )}
-          <div className="prose prose-invert max-w-none prose-p:leading-relaxed prose-strong:text-purple-400 prose-headings:text-white prose-sm">
-            {type === 'bot' ? <ReactMarkdown>{message}</ReactMarkdown> : <span>{message}</span>}
-          </div>
-        </div>
-      </div>
     </div>
   );
 }

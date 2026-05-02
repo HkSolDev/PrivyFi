@@ -31,11 +31,27 @@ pub mod privyfi {
         withdraw_handler(ctx, amount)
     }
 
-    // pub fn toggle_private(ctx: Context<TogglePrivate>) -> Result<()> {
-    //     instructions::toggle_private::handler(ctx)
-    // }
+    pub fn toggle_private(ctx: Context<TogglePrivate>) -> Result<()> {
+        instructions::toggle_private::toggle_handler(ctx)
+    }
 
     pub fn record_action(ctx: Context<RecordAction>, amount: u64) -> Result<()> {
         reward_handler(ctx, amount)
+    }
+
+    pub fn initialize_faucet(ctx: Context<InitializeFaucet>) -> Result<()> {
+        instructions::initialize_faucet::initialize_faucet(ctx)
+    }
+
+    pub fn request_faucet(ctx: Context<RequestFaucet>, amount: u64) -> Result<()> {
+        instructions::request_faucet::request_faucet(ctx, amount)
+    }
+
+    pub fn initialize_yield_store(ctx: Context<InitializeYieldStore>) -> Result<()> {
+        instructions::update_yields::initialize_yield_store_handler(ctx)
+    }
+
+    pub fn update_yields(ctx: Context<UpdateYields>, strategies: Vec<YieldData>) -> Result<()> {
+        instructions::update_yields::update_yields_handler(ctx, strategies)
     }
 }

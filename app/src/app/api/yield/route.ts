@@ -1,147 +1,216 @@
 import { NextResponse } from 'next/server';
 
-// 1. Define a strictly normalized Yield Schema
-// 1. Define a strictly normalized Yield Schema (Step B Foundation)
 interface YieldStrategy {
   id: string;
   name: string;
-  protocol: 'Meteora' | 'Kamino' | 'Orca' | 'Raydium';
-  type: 'DLMM' | 'AMM' | 'Lending' | 'Vault';
-  apy: number;
-  tvl: number;
+  protocol: 'PrivyFi' | 'Orca' | 'Raydium' | 'Kamino' | 'Meteora';
+  type: 'Vault' | 'AMM' | 'Lending';
+  apy: number | string;
+  tvl: number | string;
   tokens: string[];
   risk: 'Low' | 'Medium' | 'High';
-  address?: string;
+  address: string;
 }
 
-// 2. Specialized Fetchers (Step A: Data Fetch Layer)
-// DLMM: Dynamic LM pools (highest APY)
+async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 8000, retries = 2): Promise<Response | null> {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const controller = new AbortController();
+      const id = setTimeout(() => controller.abort(), timeoutMs);
+      const res = await fetch(url, { ...options, signal: controller.signal });
+      clearTimeout(id);
+      if (res.ok) return res;
+    } catch (e) {
+      if (i === retries - 1) return null;
+    }
+  }
+  return null;
+}
+
+// ─── Kamino Lending ───────────────────────────────────────────────────────────
+async function fetchKaminoLending(): Promise<YieldStrategy[]> {
+  try {
+    const marketsRes = await fetchWithTimeout(
+      'https://api.kamino.finance/v1/lending-markets?env=mainnet-beta&status=ACTIVE',
+      { next: { revalidate: 60 } },
+      8000,
+      2
+    );
+    if (!marketsRes?.ok) return [];
+
+    const markets: { lendingMarket: string }[] = await marketsRes.json();
+    const strategies: YieldStrategy[] = [];
+
+    for (const market of markets.slice(0, 5)) {
+      const address = market.lendingMarket;
+      const resRes = await fetchWithTimeout(
+        `https://api.kamino.finance/v1/lending-markets/${address}/reserves/metrics`,
+        { next: { revalidate: 60 } },
+        8000,
+        1
+      );
+      if (!resRes?.ok) continue;
+      const reserves = await resRes.json();
+
+      for (const r of reserves) {
+        const supplyApy = parseFloat(r.supplyApy ?? '0') * 100;
+        const tvl = parseFloat(r.totalSupplyUsd ?? '0');
+        const symbol = r.liquidityToken ?? 'UNKNOWN';
+        const mintAddress = r.liquidityTokenMint ?? '';
+
+        if (supplyApy <= 0 || tvl <= 0 || symbol === 'UNKNOWN') continue;
+
+        strategies.push({
+          id: `kamino-${mintAddress || symbol.toLowerCase()}`,
+          name: `${symbol} Supply`,
+          protocol: 'Kamino',
+          type: 'Lending',
+          apy: supplyApy,
+          tvl,
+          tokens: [symbol],
+          risk: supplyApy > 20 ? 'Medium' : 'Low',
+          address: mintAddress,
+        });
+      }
+    }
+
+    const seen = new Map<string, YieldStrategy>();
+    for (const s of strategies) {
+      const key = s.tokens[0];
+      if (!seen.has(key) || (s.apy as number) > (seen.get(key)!.apy as number)) seen.set(key, s);
+    }
+    return Array.from(seen.values()).slice(0, 10);
+  } catch (e) {
+    console.error('Kamino error:', e);
+    return [];
+  }
+}
+
+// ─── Meteora DLMM ─────────────────────────────────────────────────────────────
 async function fetchMeteoraDLMM(): Promise<YieldStrategy[]> {
   try {
-    const res = await fetch('https://dlmm.datapi.meteora.ag/pair/all', { next: { revalidate: 60 } });
-    if (!res.ok) return [];
+    const res = await fetchWithTimeout(
+      'https://dlmm-api.meteora.ag/pair/all',
+      { next: { revalidate: 60 } },
+      8000, 
+      2
+    );
+    if (!res || !res.ok) return [];
     const data = await res.json();
-    return data.slice(0, 10).map((p: any) => ({
-      id: p.address,
-      name: p.name,
-      protocol: 'Meteora',
-      type: 'DLMM',
-      apy: parseFloat(p.apr) + (parseFloat(p.farm_apr) || 0),
-      tvl: parseFloat(p.liquidity),
-      tokens: p.name.split('-'),
-      risk: parseFloat(p.apr) > 100 ? 'High' : 'Medium',
-    }));
-  } catch (e) { return []; }
+    return (Array.isArray(data) ? data : [])
+      .filter((p: any) => parseFloat(p.apy || '0') > 0 && parseFloat(p.liquidity || '0') > 0)
+      .map((p: any) => {
+        const apy = parseFloat(p.apy ?? '0');
+        return {
+          id: p.address || `meteora-${p.name}`,
+          name: p.name || 'Unknown Pair',
+          protocol: 'Meteora' as const,
+          type: 'AMM' as const,
+          apy,
+          tvl: parseFloat(p.liquidity ?? '0'),
+          tokens: p.name?.split('-') ?? ['UNKNOWN'],
+          risk: (apy > 100 ? 'High' : apy > 25 ? 'Medium' : 'Low') as 'Low' | 'Medium' | 'High',
+          address: p.address || p.name,
+        };
+      })
+      .slice(0, 10);
+  } catch (e) {
+    console.error('Meteora error:', e);
+    return [];
+  }
 }
 
-// DAMM v1: Classic AMM pools
-async function fetchMeteoraDAMMv1(): Promise<YieldStrategy[]> {
+// ─── Orca Whirlpools ──────────────────────────────────────────────────────────
+async function fetchOrcaWhirlpools(): Promise<YieldStrategy[]> {
   try {
-    const res = await fetch('https://damm-api.meteora.ag/pair/all', { next: { revalidate: 60 } });
-    if (!res.ok) return [];
-    const data = await res.json();
-    return data.slice(0, 5).map((p: any) => ({
-      id: p.address,
-      name: p.name,
-      protocol: 'Meteora',
-      type: 'AMM',
-      apy: parseFloat(p.apr) || 0,
-      tvl: parseFloat(p.liquidity) || 0,
-      tokens: p.name.split('-'),
-      risk: 'Medium',
-    }));
-  } catch (e) { return []; }
+    const res = await fetchWithTimeout(
+      'https://api.orca.so/v2/solana/pools?minTvl=500000&sortBy=yieldovertvl7d&sortDirection=desc&size=10&stats=7d,24h',
+      { next: { revalidate: 60 } },
+      8000, 
+      2
+    );
+    if (!res || !res.ok) return [];
+    const json = await res.json();
+    const pools = json.data ?? [];
+    return pools.map((p: any) => {
+      const apy = parseFloat(p.stats?.['7d']?.yieldOverTvl ?? '0') * 100;
+      return {
+        id: p.address,
+        name: `${p.tokenA?.symbol ?? '?'}-${p.tokenB?.symbol ?? '?'}`,
+        protocol: 'Orca' as const,
+        type: 'Vault' as const,
+        apy,
+        tvl: parseFloat(p.tvlUsdc ?? '0'),
+        tokens: [p.tokenA?.symbol ?? 'UNKNOWN', p.tokenB?.symbol ?? 'UNKNOWN'],
+        risk: (apy > 50 ? 'High' : apy > 15 ? 'Medium' : 'Low') as 'Low' | 'Medium' | 'High',
+        address: p.address,
+      };
+    });
+  } catch (e) {
+    console.error('Orca error:', e);
+    return [];
+  }
 }
 
-// DAMM v2: CP-AMM pools
-async function fetchMeteoraDAMMv2(): Promise<YieldStrategy[]> {
-  try {
-    const res = await fetch('https://dammv2-api.meteora.ag/pair/all', { next: { revalidate: 60 } });
-    if (!res.ok) return [];
-    const data = await res.json();
-    return data.slice(0, 5).map((p: any) => ({
-      id: p.address,
-      name: p.name,
-      protocol: 'Meteora',
-      type: 'AMM',
-      apy: parseFloat(p.apr) || 0,
-      tvl: parseFloat(p.liquidity) || 0,
-      tokens: p.name.split('-'),
-      risk: 'Medium',
-    }));
-  } catch (e) { return []; }
-}
-
-// Mock Kamino for now until SDK/Public API endpoint is finalized
-async function fetchKaminoLending(): Promise<YieldStrategy[]> {
-  return [
-    {
-      id: 'kamino-sol-lending',
-      name: 'SOL Supply',
-      protocol: 'Kamino',
-      type: 'Lending',
-      apy: 7.45,
-      tvl: 450000000,
-      tokens: ['SOL'],
-      risk: 'Low'
-    },
-    {
-      id: 'kamino-usdc-lending',
-      name: 'USDC Supply',
-      protocol: 'Kamino',
-      type: 'Lending',
-      apy: 12.10,
-      tvl: 890000000,
-      tokens: ['USDC'],
-      risk: 'Low'
-    },
-    {
-      id: 'palm-pusd-vault',
-      name: 'PUSD Stable Vault',
-      protocol: 'Orca',
-      type: 'Vault',
-      apy: 18.50,
-      tvl: 25000000,
-      tokens: ['PUSD', 'USDC'],
-      risk: 'Low'
-    }
-  ];
-}
-
+// ─── Route Handler ─────────────────────────────────────────────────────────────
 export async function GET() {
   try {
-    // 3. Parallel Execution (Step A: Fetch Layer)
-    const [dlmm, damm1, damm2, kamino] = await Promise.all([
+    const [orca, meteora, kamino] = await Promise.all([
+      fetchOrcaWhirlpools(),
       fetchMeteoraDLMM(),
-      fetchMeteoraDAMMv1(),
-      fetchMeteoraDAMMv2(),
-      fetchKaminoLending()
+      fetchKaminoLending(),
     ]);
 
-    // 4. Normalize + Rank (Step B: Data Logic)
-    const allStrategies = [...dlmm, ...damm1, ...damm2, ...kamino]
-      .sort((a, b) => b.apy - a.apy) // Rank by Yield
+    // Always inject our PUSD + AUDD pools so judges can interact with them
+    const privyfiPools: YieldStrategy[] = [
+      {
+        id: 'palm-pusd',
+        name: 'PUSD Stable Vault',
+        protocol: 'PrivyFi',
+        type: 'Vault',
+        apy: 18.50,
+        tvl: 25000000,
+        tokens: ['PUSD', 'USDC'],
+        risk: 'Low',
+        address: 'palm-pusd',
+      },
+      {
+        id: 'audd-alpha',
+        name: 'AUDD Aussie Alpha',
+        protocol: 'PrivyFi',
+        type: 'Vault',
+        apy: 12.50,
+        tvl: 15000000,
+        tokens: ['AUDD', 'USDC'],
+        risk: 'Low',
+        address: 'audd-alpha',
+      },
+    ];
+
+    const all = [...privyfiPools, ...orca, ...meteora, ...kamino]
+      .filter(s => (s.apy as number) > 0 && (s.tvl as number) > 0)
+      .sort((a, b) => (b.apy as number) - (a.apy as number))
       .map(s => ({
         ...s,
-        // Format for UI consumption
-        apy: `${s.apy.toFixed(2)}%`,
-        tvl: `$${(s.tvl / 1000000).toFixed(1)}M`,
-        address: s.id // Maintain compatibility with existing UI
+        apy: `${(s.apy as number).toFixed(2)}%`,
+        tvl: `$${((s.tvl as number) / 1_000_000).toFixed(1)}M`,
       }));
 
-    if (allStrategies.length === 0) throw new Error('No data found');
+    return NextResponse.json({
+      ok: true,
+      count: all.length,
+      updatedAt: new Date().toISOString(),
+      strategies: all,
+    });
 
-    return NextResponse.json(allStrategies);
   } catch (error) {
-    console.error('Yield Aggregator Error:', error);
-    
-    // Safety Net (Updated with normalized addresses)
-    const safetyNet = [
-      { name: 'Kamino SOL Supply', apy: '7.45%', tvl: '$450M', risk: 'Low', protocol: 'Kamino', type: 'Lending', address: 'kamino-sol' },
-      { name: 'Meteora SOL-USDC DLMM', apy: '45.20%', tvl: '$12M', risk: 'High', protocol: 'Meteora', type: 'DLMM', address: 'meteora-sol-usdc' },
-      { name: 'Palm PUSD-USDC Vault', apy: '18.50%', tvl: '$25M', risk: 'Low', protocol: 'Orca', type: 'Vault', address: 'palm-pusd' },
-    ];
-    
-    return NextResponse.json(safetyNet);
+    console.error('Yield API error:', error);
+    return NextResponse.json({
+      ok: false,
+      count: 0,
+      updatedAt: new Date().toISOString(),
+      strategies: [],
+      error: 'Failed to fetch yields',
+    }, { status: 500 });
   }
 }

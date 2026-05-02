@@ -9,7 +9,7 @@ export type Message = {
 };
 
 export function useAI() {
-  const { data: portfolio } = usePortfolio();
+  const { tokens: portfolio } = usePortfolio();
   const { strategies } = useYield();
   const { getUserPositions, wallet } = useAnchorProgram();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -41,7 +41,7 @@ export function useAI() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           messages: updatedMessages,
-          portfolio: portfolio?.attributes?.positions, // Pass real portfolio data
+          portfolio: portfolio, // Pass real portfolio data
           staked: stakedPositions, // Pass PrivyFi staked data
           strategies // Pass live yield data
         }),

@@ -198,6 +198,120 @@ export type Privyfi = {
       ]
     },
     {
+      "name": "initializeFaucet",
+      "discriminator": [
+        159,
+        109,
+        237,
+        214,
+        69,
+        231,
+        14,
+        60
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "mint"
+        },
+        {
+          "name": "faucetAuthority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  102,
+                  97,
+                  117,
+                  99,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "faucetVault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "faucetAuthority"
+              },
+              {
+                "kind": "account",
+                "path": "tokenProgram"
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "tokenProgram"
+        },
+        {
+          "name": "associatedTokenProgram",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "initializePool",
       "discriminator": [
         95,
@@ -401,6 +515,55 @@ export type Privyfi = {
       "args": []
     },
     {
+      "name": "initializeYieldStore",
+      "discriminator": [
+        157,
+        130,
+        156,
+        8,
+        147,
+        185,
+        255,
+        246
+      ],
+      "accounts": [
+        {
+          "name": "yieldStore",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  121,
+                  105,
+                  101,
+                  108,
+                  100,
+                  45,
+                  115,
+                  116,
+                  111,
+                  114,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "recordAction",
       "discriminator": [
         153,
@@ -450,6 +613,289 @@ export type Privyfi = {
         {
           "name": "amount",
           "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "requestFaucet",
+      "discriminator": [
+        241,
+        161,
+        37,
+        14,
+        117,
+        165,
+        218,
+        191
+      ],
+      "accounts": [
+        {
+          "name": "user",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "mint"
+        },
+        {
+          "name": "faucetAuthority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  102,
+                  97,
+                  117,
+                  99,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "faucetVault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "faucetAuthority"
+              },
+              {
+                "kind": "account",
+                "path": "tokenProgram"
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "userTokenAccount",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "user"
+              },
+              {
+                "kind": "account",
+                "path": "tokenProgram"
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "tokenProgram"
+        },
+        {
+          "name": "associatedTokenProgram",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "togglePrivate",
+      "discriminator": [
+        224,
+        68,
+        155,
+        78,
+        10,
+        155,
+        103,
+        140
+      ],
+      "accounts": [
+        {
+          "name": "user",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "userProfile",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  102,
+                  105,
+                  108,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "user"
+              }
+            ]
+          }
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "updateYields",
+      "discriminator": [
+        115,
+        184,
+        90,
+        132,
+        80,
+        44,
+        196,
+        201
+      ],
+      "accounts": [
+        {
+          "name": "yieldStore",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  121,
+                  105,
+                  101,
+                  108,
+                  100,
+                  45,
+                  115,
+                  116,
+                  111,
+                  114,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "yieldStore"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "strategies",
+          "type": {
+            "vec": {
+              "defined": {
+                "name": "yieldData"
+              }
+            }
+          }
         }
       ]
     },
@@ -688,6 +1134,19 @@ export type Privyfi = {
         95,
         93
       ]
+    },
+    {
+      "name": "yieldStore",
+      "discriminator": [
+        87,
+        13,
+        205,
+        217,
+        146,
+        91,
+        185,
+        117
+      ]
     }
   ],
   "errors": [
@@ -705,6 +1164,11 @@ export type Privyfi = {
       "code": 6002,
       "name": "overflow",
       "msg": "Arithmetic overflow — amount too large"
+    },
+    {
+      "code": 6003,
+      "name": "unauthorized",
+      "msg": "You are not authorized to update yields"
     }
   ],
   "types": [
@@ -815,6 +1279,64 @@ export type Privyfi = {
           {
             "name": "bump",
             "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "yieldData",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "protocol",
+            "type": "u8"
+          },
+          {
+            "name": "poolType",
+            "type": "u8"
+          },
+          {
+            "name": "apyBps",
+            "type": "u32"
+          },
+          {
+            "name": "tvlUsd",
+            "type": "u64"
+          },
+          {
+            "name": "risk",
+            "type": "u8"
+          },
+          {
+            "name": "address",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "yieldStore",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "lastUpdated",
+            "type": "i64"
+          },
+          {
+            "name": "strategies",
+            "type": {
+              "vec": {
+                "defined": {
+                  "name": "yieldData"
+                }
+              }
+            }
           }
         ]
       }

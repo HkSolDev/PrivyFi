@@ -4,6 +4,8 @@ import { WalletContextProvider } from "@/components/WalletContextProvider";
 import { Geist } from "next/font/google";
 import { cn } from "@/lib/utils";
 import { Toaster } from "sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import GlobalChat from "@/components/GlobalChat";
 
 const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
@@ -21,8 +23,11 @@ export default function RootLayout({
     <html lang="en" className={cn("font-sans", geist.variable)}>
       <body>
         <WalletContextProvider>
-          {children}
-          <Toaster theme="dark" position="bottom-right" />
+          <TooltipProvider>
+            {children}
+            <GlobalChat />
+            <Toaster theme="dark" position="bottom-right" />
+          </TooltipProvider>
         </WalletContextProvider>
       </body>
     </html>

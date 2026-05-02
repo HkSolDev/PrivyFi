@@ -6,7 +6,9 @@ import {
   TrendingDown,
   Wallet,
   Activity,
-  Loader2
+  Loader2,
+  Brain,
+  Sparkles
 } from 'lucide-react';
 import { usePortfolio } from '@/hooks/usePortfolio';
 import { useUserProfile } from '@/hooks/useUserProfile';
@@ -15,13 +17,19 @@ import { useYield } from '@/hooks/useYield';
 import { useState, useEffect } from 'react';
 import PerformanceChart from '@/components/PerformanceChart';
 import YieldDetailsModal from '@/components/modals/YieldDetailsModal';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 export default function DashboardView() {
-  const { data, loading } = usePortfolio();
+  const { tokens, totalValue, pricesLoading } = usePortfolio();
   const { profile } = useUserProfile();
   const { strategies, loading: yieldLoading } = useYield();
   const { getUserPositions, wallet } = useAnchorProgram();
   const [stakedValue, setStakedValue] = useState(0);
+  const [suggestion, setSuggestion] = useState<any>(null);
+  const [suggestLoading, setSuggestLoading] = useState(false);
 
   const [selectedStrategy, setSelectedStrategy] = useState<any>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -37,10 +45,35 @@ export default function DashboardView() {
     fetchStaked();
   }, [wallet]);
 
+  // AI Smart Suggestion Logic
+  useEffect(() => {
+    async function fetchSuggestion() {
+      if (tokens.length > 0 && strategies.length > 0 && !suggestion && !suggestLoading) {
+        setSuggestLoading(true);
+        try {
+          const res = await fetch('/api/ai/suggest', {
+            method: 'POST',
+            body: JSON.stringify({ portfolio: tokens, strategies }),
+          });
+          const data = await res.json();
+          const match = strategies.find(s => s.id === data.strategyId);
+          if (match) {
+            setSuggestion({ ...match, reason: data.reason });
+          }
+        } catch (e) {
+          console.error("Suggestion failed", e);
+        } finally {
+          setSuggestLoading(false);
+        }
+      }
+    }
+    fetchSuggestion();
+  }, [tokens, strategies]);
+
   const isPrivate = profile?.privateMode || false;
 
-  const totalValue = data?.attributes?.total?.positions ? `$${data.attributes.total.positions.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '$0.00';
-  const positionsCount = data?.attributes?.positions?.length || 0;
+  const totalValueDisplay = `$${totalValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+  const positionsCount = tokens.length;
 
   const topStrategies = strategies.slice(0, 3);
 
@@ -53,46 +86,79 @@ export default function DashboardView() {
           value={`$${stakedValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}`} 
           change="Live" 
           trend="up"
-          className="purple-glow"
+          className="purple-glow border-purple-500/20"
         />
         <StatCard 
           label="Total Net Worth" 
-          value={loading ? "Loading..." : totalValue} 
-          change={loading ? "..." : "+0.00%"} 
+          value={pricesLoading ? "Loading..." : totalValueDisplay} 
+          change={pricesLoading ? "..." : "+0.00%"} 
           trend="neutral"
         />
         <StatCard 
           label="Yield Strategies" 
-          value={loading ? "..." : `${positionsCount} Active`} 
+          value={`${positionsCount} Active`} 
           change="Stable" 
           trend="neutral"
         />
       </div>
 
+      {/* AI Smart Suggestion Card */}
+      {suggestion && (
+        <Card className="bg-gradient-to-r from-purple-900/40 to-blue-900/40 border-purple-500/30 relative overflow-hidden group hover:border-purple-500/50 transition-all">
+          <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-110 transition-transform">
+            <Brain size={120} />
+          </div>
+          <CardHeader className="pb-2">
+            <div className="flex items-center gap-2 mb-1">
+              <Sparkles size={16} className="text-yellow-400 animate-pulse" />
+              <Badge className="bg-purple-600 text-[10px] font-black uppercase tracking-widest px-2">AI Smart Pick</Badge>
+            </div>
+            <CardTitle className="text-2xl font-black text-white">Suggested for Your Wallet</CardTitle>
+            <CardDescription className="text-purple-200/70 font-medium">{suggestion.reason}</CardDescription>
+          </CardHeader>
+          <CardContent className="flex items-center justify-between pt-4">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center border border-white/10">
+                <TrendingUp size={24} className="text-white" />
+              </div>
+              <div>
+                <h4 className="font-bold text-white text-lg">{suggestion.name}</h4>
+                <p className="text-xs text-purple-300/60 uppercase font-black">{suggestion.protocol} • {suggestion.apy} APY</p>
+              </div>
+            </div>
+            <Button 
+              onClick={() => { setSelectedStrategy(suggestion); setIsModalOpen(true); }}
+              className="bg-white text-purple-900 font-black hover:bg-white/90 px-8 h-12 rounded-xl shadow-2xl shadow-purple-900/50"
+            >
+              Analyze & Deposit
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Chart Section */}
-      <div className="glass-card h-[400px] !p-8 relative overflow-hidden purple-glow">
-        <div className="flex justify-between items-center mb-8 relative z-20">
-          <div>
-            <h3 className="text-xl font-bold">Portfolio Performance</h3>
-            <p className="text-xs text-gray-500 mt-1">Growth over the last 7 days</p>
+      <Card className="bg-[#0d0d12]/40 border-white/5 relative overflow-hidden purple-glow p-4">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-7">
+          <div className="space-y-1">
+            <CardTitle className="text-xl font-bold">Portfolio Performance</CardTitle>
+            <CardDescription className="text-xs text-gray-500">Growth over the last 7 days</CardDescription>
           </div>
-          <div className="flex gap-2">
-            <span className="px-3 py-1 bg-purple-500/10 text-purple-400 text-[10px] font-black rounded-lg border border-purple-500/20">Live</span>
+          <Badge variant="outline" className="bg-purple-500/10 text-purple-400 border-purple-500/20 font-black text-[10px] uppercase">Live</Badge>
+        </CardHeader>
+        <CardContent>
+          <div className="h-[280px] w-full">
+            <PerformanceChart isPrivate={isPrivate} data={undefined as any} />
           </div>
-        </div>
-        <div className="h-[280px] w-full">
-          {/* Removing data={[]} so it uses the mock fallback data! */}
-          <PerformanceChart isPrivate={isPrivate} data={undefined as any} />
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
       {/* Yield Section */}
-      <div className="glass-card !p-8">
-        <div className="flex justify-between items-center mb-8">
-          <h3 className="text-xl font-bold">Top Yield Opportunities</h3>
-          <button className="text-sm text-purple-400 font-bold hover:underline tracking-tight">View All</button>
-        </div>
-        <div className="flex flex-col gap-4">
+      <Card className="bg-[#0d0d12]/40 border-white/5 p-4">
+        <CardHeader className="flex flex-row items-center justify-between pb-8">
+          <CardTitle className="text-xl font-bold">Top Yield Opportunities</CardTitle>
+          <Button variant="link" className="text-sm text-purple-400 font-bold hover:underline p-0 h-auto">View All</Button>
+        </CardHeader>
+        <CardContent className="space-y-4">
           {yieldLoading ? (
             <div className="text-center py-12 text-gray-500 border border-dashed border-white/10 rounded-2xl flex items-center justify-center gap-3">
               <Loader2 className="animate-spin" size={20} />
@@ -109,7 +175,7 @@ export default function DashboardView() {
                     <TrendingUp size={24} className="text-purple-400" />
                   </div>
                   <div>
-                    <h4 className="font-bold text-lg tracking-tight">{strat.name}</h4>
+                    <h4 className="font-bold text-lg tracking-tight text-white">{strat.name}</h4>
                     <p className="text-xs text-gray-500 flex items-center gap-2">
                       <span className="font-bold text-gray-400">{strat.protocol}</span> • 
                       <span>TVL: {strat.tvl}</span>
@@ -122,12 +188,12 @@ export default function DashboardView() {
                     <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-1">Live APY</p>
                     <p className="text-2xl font-black text-green-400">{strat.apy}</p>
                   </div>
-                  <button 
+                  <Button 
                     onClick={() => { setSelectedStrategy(strat); setIsModalOpen(true); }}
                     className="px-6 py-3 bg-white text-black font-bold rounded-xl hover:scale-105 active:scale-95 transition-all text-sm shadow-xl"
                   >
                     Deposit
-                  </button>
+                  </Button>
                 </div>
               </div>
             ))
@@ -136,8 +202,8 @@ export default function DashboardView() {
               No yield strategies found at the moment.
             </div>
           )}
-        </div>
-      </div>
+        </CardContent>
+      </Card>
       
       {selectedStrategy && (
         <YieldDetailsModal 
@@ -158,17 +224,20 @@ function StatCard({ label, value, change, trend, className }: {
   className?: string 
 }) {
   return (
-    <div className={`glass-card p-6 group hover:scale-[1.02] transition-all ${className}`}>
-      <div className="flex justify-between items-start mb-4">
-        <p className="text-xs text-gray-500 font-bold uppercase tracking-widest">{label}</p>
-        <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black ${
+    <Card className={cn("bg-[#0d0d12]/40 border-white/5 p-4 group hover:scale-[1.02] transition-all", className)}>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">{label}</p>
+        <Badge variant="outline" className={cn(
+          "text-[10px] font-black border-none",
           trend === 'up' ? 'bg-green-500/10 text-green-400' : trend === 'down' ? 'bg-red-500/10 text-red-400' : 'bg-gray-500/10 text-gray-400'
-        }`}>
-          {trend === 'up' ? <TrendingUp size={12} /> : trend === 'down' ? <TrendingDown size={12} /> : null}
+        )}>
+          {trend === 'up' ? <TrendingUp size={10} className="mr-1" /> : trend === 'down' ? <TrendingDown size={10} className="mr-1" /> : null}
           {change}
-        </div>
-      </div>
-      <h3 className="text-2xl font-black tracking-tight">{value}</h3>
-    </div>
+        </Badge>
+      </CardHeader>
+      <CardContent>
+        <div className="text-2xl font-black tracking-tight text-white">{value}</div>
+      </CardContent>
+    </Card>
   );
 }
