@@ -53,14 +53,18 @@ export function useYield() {
       }
       const data = await response.json();
 
+      // API returns { ok, strategies: [...] } — extract the array.
+      // Fall back to data itself if it's already a flat array (legacy safety).
+      const list: any[] = Array.isArray(data) ? data : (data.strategies ?? []);
+
       // Update module-level cache
-      cachedStrategies = data;
+      cachedStrategies = list;
       cacheTimestamp = Date.now();
 
-      setStrategies(data);
+      setStrategies(list);
 
       // 🔥 Background prefetch: kick off AI analysis for top 3 pools
-      prefetchTopStrategies(data);
+      prefetchTopStrategies(list);
     } catch (err: any) {
       setError(err.message);
     } finally {

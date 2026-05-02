@@ -7,6 +7,7 @@ export interface AIRecommendation {
   riskLevel: 'Low' | 'Medium' | 'High';
   reasoning: string[];       // exactly 3 bullet-point reasons
   exampleReturn: string;     // "If you deposit $100, you could earn ~$X in 30 days"
+  swarmVotes?: Array<{ model: string; vote: string; confidence: number; reasoning?: string }>;  // individual node votes
 }
 
 // --- Module-level AI recommendation cache ---

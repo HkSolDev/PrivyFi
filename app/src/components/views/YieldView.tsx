@@ -41,8 +41,9 @@ export default function YieldView() {
                           strat.protocol.toLowerCase().includes(searchQuery.toLowerCase());
     
     if (activeFilter === 'SOL') return matchesSearch && strat.name.includes('SOL');
-    if (activeFilter === 'Stable') return matchesSearch && (strat.name.includes('USDC') || strat.name.includes('USDT') || strat.name.includes('PUSD'));
+    if (activeFilter === 'Stable') return matchesSearch && (strat.name.includes('USDC') || strat.name.includes('USDT') || strat.name.includes('PUSD') || strat.name.includes('AUDD'));
     if (activeFilter === 'PUSD') return matchesSearch && strat.name.includes('PUSD');
+    if (activeFilter === 'AUDD') return matchesSearch && strat.name.includes('AUDD');
     if (activeFilter === 'High Yield') return matchesSearch && parseFloat(strat.apy) > 50;
     
     return matchesSearch;
@@ -133,7 +134,7 @@ export default function YieldView() {
 
         {/* Filter Chips */}
         <div className="flex gap-2 mb-8 overflow-x-auto pb-2">
-          {['All', 'SOL', 'Stable', 'PUSD', 'High Yield'].map((filter) => (
+          {['All', 'SOL', 'Stable', 'PUSD', 'AUDD', 'High Yield'].map((filter) => (
             <Button
               key={filter}
               onClick={() => setActiveFilter(filter)}

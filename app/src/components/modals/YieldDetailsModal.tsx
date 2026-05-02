@@ -18,38 +18,61 @@ interface YieldDetailsModalProps {
 export default function YieldDetailsModal({ strategy, isOpen, onClose }: YieldDetailsModalProps) {
   const [isDepositing, setIsDepositing] = useState(false);
   const [isWithdrawing, setIsWithdrawing] = useState(false);
+  const [isFauceting, setIsFauceting] = useState(false);
   const [success, setSuccess] = useState(false);
 
   const { analyzeStrategy, recommendation, loading: loadingAi, reset: resetAi, loadFromCache } = useAIRecommendation();
   const { deposit, withdraw, initializeUser, program, wallet, getPdas, connection } = useAnchorProgram();
-  const [currentStake, setCurrentStake] = useState(0);
+  const [currentStake, setCurrentStake] = useState<number>(0);
   const [tokenBalance, setTokenBalance] = useState<number | null>(null);
 
   const MINT_ADDRESSES: Record<string, string> = {
-    'USDC': 'Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr',
+    'USDC': process.env.NEXT_PUBLIC_FAKE_USDC_MINT || 'Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr',
     'SOL': 'So11111111111111111111111111111111111111112',
-    'PUSD': 'D7cz4o6bMYFSP1tRxMcfivpKj4HSApc1qfQnub2S72Ca', // Mock for now
+    'PUSD': process.env.NEXT_PUBLIC_FAKE_PUSD_MINT || '9m4cLdJAGDgsuwHwu1up2avvatfmiSzgMa6aarHR135N', 
+    'AUDD': process.env.NEXT_PUBLIC_FAKE_AUDD_MINT || 'HX4ENGDHv2F5cvWrBWAhdnEYQkA1U645G6LUs5uiWsQ',
+  };
+
+  const TOKEN_PROGRAMS: Record<string, string> = {
+    'USDC': 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
+    'SOL': 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
+    'PUSD': 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb', // Token-2022
+    'AUDD': 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb', // Token-2022
   };
 
   const FAUCET_LINKS: Record<string, string> = {
-    'USDC': 'https://solana.com/faucet', // General faucet handles USDC on devnet too often
+    'USDC': 'https://solana.com/faucet', 
     'SOL': 'https://faucet.solana.com/',
-    'PUSD': 'https://faucet.palm.io/', // Placeholder
+    'PUSD': `https://explorer.solana.com/address/${MINT_ADDRESSES.PUSD}?cluster=devnet`,
+    'AUDD': `https://explorer.solana.com/address/${MINT_ADDRESSES.AUDD}?cluster=devnet`,
   };
 
   const getTokenInfo = () => {
     const name = strategy?.name || '';
-    if (name.includes('USDC')) return { mint: MINT_ADDRESSES.USDC, faucet: FAUCET_LINKS.USDC, symbol: 'USDC' };
-    if (name.includes('SOL')) return { mint: MINT_ADDRESSES.SOL, faucet: FAUCET_LINKS.SOL, symbol: 'SOL' };
-    if (name.includes('PUSD')) return { mint: MINT_ADDRESSES.PUSD, faucet: FAUCET_LINKS.PUSD, symbol: 'PUSD' };
-    return { mint: MINT_ADDRESSES.USDC, faucet: FAUCET_LINKS.USDC, symbol: 'USDC' }; // Default
+    if (name.includes('USDC')) return { mint: MINT_ADDRESSES.USDC, faucet: FAUCET_LINKS.USDC, symbol: 'USDC', programId: TOKEN_PROGRAMS.USDC };
+    if (name.includes('SOL')) return { mint: MINT_ADDRESSES.SOL, faucet: FAUCET_LINKS.SOL, symbol: 'SOL', programId: TOKEN_PROGRAMS.SOL };
+    if (name.includes('PUSD')) return { mint: MINT_ADDRESSES.PUSD, faucet: FAUCET_LINKS.PUSD, symbol: 'PUSD', programId: TOKEN_PROGRAMS.PUSD };
+    if (name.includes('AUDD')) return { mint: MINT_ADDRESSES.AUDD, faucet: FAUCET_LINKS.AUDD, symbol: 'AUDD', programId: TOKEN_PROGRAMS.AUDD };
+    return { mint: MINT_ADDRESSES.USDC, faucet: FAUCET_LINKS.USDC, symbol: 'USDC', programId: TOKEN_PROGRAMS.USDC };
+  };
+
+  const refreshBalance = async () => {
+    if (wallet && connection) {
+      try {
+        const { mint, programId } = getTokenInfo();
+        const { getAssociatedTokenAddressSync } = await import('@solana/spl-token');
+        const ata = getAssociatedTokenAddressSync(new PublicKey(mint), wallet.publicKey, false, new PublicKey(programId));
+        const balance = await connection.getTokenAccountBalance(ata);
+        setTokenBalance(balance.value.uiAmount);
+      } catch (e) {
+        setTokenBalance(0);
+      }
+    }
   };
 
   useEffect(() => {
     async function init() {
       if (isOpen && strategy) {
-        // Fetch stake immediately so UI is responsive
-        // Fetch stake specifically for THIS pool
         if (wallet && program) {
           const { userPositionPda } = getPdas(wallet.publicKey, strategy.name);
           try {
@@ -59,20 +82,9 @@ export default function YieldDetailsModal({ strategy, isOpen, onClose }: YieldDe
             setCurrentStake(0);
           }
 
-          // Fetch token balance
-          try {
-            const { mint } = getTokenInfo();
-            const { getAssociatedTokenAddressSync } = await import('@solana/spl-token');
-            const ata = getAssociatedTokenAddressSync(new PublicKey(mint), wallet.publicKey);
-            const balance = await connection.getTokenAccountBalance(ata);
-            setTokenBalance(balance.value.uiAmount);
-          } catch (e) {
-            setTokenBalance(0);
-          }
+          await refreshBalance();
         }
         
-        // Try to restore from cache first (instant, no network call).
-        // If cache misses, reset so the user sees the 'Analyze' CTA.
         const cacheHit = loadFromCache(strategy);
         if (!cacheHit) {
           resetAi();
@@ -87,6 +99,36 @@ export default function YieldDetailsModal({ strategy, isOpen, onClose }: YieldDe
     await analyzeStrategy(strategy);
   };
 
+  const handleFaucet = async () => {
+    if (!wallet) return;
+    const { mint, symbol } = getTokenInfo();
+    if (symbol !== 'PUSD' && symbol !== 'AUDD') {
+      window.open(getTokenInfo().faucet, '_blank');
+      return;
+    }
+
+    setIsFauceting(true);
+    toast.info(`Requesting 1,000 ${symbol} from Faucet...`);
+    try {
+      const response = await fetch('/api/faucet', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          targetAddress: wallet.publicKey.toBase58(),
+          mintAddress: mint,
+        })
+      });
+
+      if (!response.ok) throw new Error("Faucet request failed");
+      toast.success(`Received 1,000 ${symbol}!`);
+      await refreshBalance();
+    } catch (e: any) {
+      toast.error(`Faucet Error: ${e.message}`);
+    } finally {
+      setIsFauceting(false);
+    }
+  };
+
   const handleStartEarning = async () => {
     if (!wallet) {
       toast.error("Please connect your Solflare or Phantom wallet first!");
@@ -97,25 +139,21 @@ export default function YieldDetailsModal({ strategy, isOpen, onClose }: YieldDe
     try {
       try {
         await initializeUser();
-      } catch (e) {
-        console.log("User might already be initialized");
-      }
+      } catch (e) {}
 
-      console.log(`Routing swap via dFlow / Jupiter for ${strategy.name}...`);
       const poolName = strategy.name;
-      const { mint } = getTokenInfo();
+      const { mint, programId } = getTokenInfo();
       const mockMint = new PublicKey(mint);
+      const tokenProgram = new PublicKey(programId);
 
       toast.info(`Depositing ${strategy.name.includes('SOL') ? 'SOL' : 'tokens'} to vault...`);
       const tx = await deposit(poolName, mockMint, 1000000); 
       
-      console.log("Deposit successful:", tx);
       toast.success("Deposit successful!");
       setSuccess(true);
-      setCurrentStake(prev => prev + 1); // locally increment for demo
+      setCurrentStake(prev => prev + 1); 
       setTimeout(() => setSuccess(false), 5000);
     } catch (e: any) {
-      console.error("Deposit failed:", e);
       toast.error(`Deposit failed: ${e.message || "Unknown error"}`);
     } finally {
       setIsDepositing(false);
@@ -132,7 +170,7 @@ export default function YieldDetailsModal({ strategy, isOpen, onClose }: YieldDe
       const mockMint = new PublicKey(mint);
       const tx = await withdraw(poolName, mockMint, 1000000); 
       toast.success("Withdraw successful!");
-      setCurrentStake(prev => Math.max(0, prev - 1)); // locally decrement
+      setCurrentStake(prev => Math.max(0, prev - 1));
     } catch (e: any) {
       toast.error(`Withdraw failed: ${e.message || "Unknown error"}`);
     } finally {
@@ -277,20 +315,30 @@ export default function YieldDetailsModal({ strategy, isOpen, onClose }: YieldDe
             </div>
           </div>
 
-          {/* Educational Content */}
-          <div className="space-y-6">
-            <div>
-              <h4 className="font-bold flex items-center gap-2 mb-2 text-white">
-                <TrendingUp size={18} className="text-green-400" /> 
-                How you earn money
+          {/* Educational Content / Swarm Visualizer */}
+          {recommendation?.swarmVotes && recommendation.swarmVotes.length > 0 ? (
+            <div className="space-y-4">
+              <h4 className="font-bold flex items-center gap-2 mb-4 text-white">
+                <Brain size={18} className="text-purple-400" /> 
+                Individual AI Node Votes
               </h4>
-              <p className="text-sm text-gray-500 leading-relaxed">
-                By depositing into this pool, you are providing "Liquidity" to other traders. 
-                Every time someone swaps between these tokens, they pay a small fee. 
-                **That fee goes directly to you.** 
-              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {recommendation.swarmVotes.map((v: any, idx: number) => (
+                  <div key={idx} className="bg-white/5 border border-white/5 p-3 rounded-xl flex items-center justify-between">
+                    <div className="flex flex-col">
+                      <span className="text-xs font-mono text-gray-400">{v.model}</span>
+                      <span className="text-xs text-gray-500 truncate max-w-[150px]">{v.reasoning || "Analyzed successfully"}</span>
+                    </div>
+                    <div className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${
+                      v.vote === 'Recommended' ? 'bg-green-500/20 text-green-400' : 'bg-orange-500/20 text-orange-400'
+                    }`}>
+                      {v.vote}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
-
+          ) : (
             <div className="p-4 bg-orange-500/5 border border-orange-500/10 rounded-2xl">
               <h4 className="font-bold flex items-center gap-2 mb-2 text-orange-400">
                 <ShieldAlert size={18} /> 
@@ -302,7 +350,7 @@ export default function YieldDetailsModal({ strategy, isOpen, onClose }: YieldDe
                   : "This is a more stable pool, but still carries smart contract risks."}
               </p>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Footer */}
@@ -335,14 +383,25 @@ export default function YieldDetailsModal({ strategy, isOpen, onClose }: YieldDe
               </Button>
             )}
             {tokenBalance === 0 ? (
-              <a 
-                href={getTokenInfo().faucet}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex-1 md:flex-none px-10 py-4 rounded-2xl bg-yellow-500 text-black font-black hover:scale-105 active:scale-95 transition-all text-center flex items-center justify-center gap-2"
-              >
-                Get Devnet {getTokenInfo().symbol} (Faucet)
-              </a>
+              (getTokenInfo().symbol === 'PUSD' || getTokenInfo().symbol === 'AUDD') ? (
+                <Button 
+                  onClick={handleFaucet}
+                  disabled={isFauceting}
+                  className="flex-1 md:flex-none px-10 py-6 rounded-2xl bg-yellow-500 text-black font-black hover:scale-105 active:scale-95 transition-all text-center flex items-center justify-center gap-2 h-auto"
+                >
+                  {isFauceting ? <Loader2 className="animate-spin" size={20} /> : <Zap size={20} />}
+                  Get Devnet {getTokenInfo().symbol} (Airdrop)
+                </Button>
+              ) : (
+                <a 
+                  href={getTokenInfo().faucet}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 md:flex-none px-10 py-4 rounded-2xl bg-yellow-500 text-black font-black hover:scale-105 active:scale-95 transition-all text-center flex items-center justify-center gap-2"
+                >
+                  Get Devnet {getTokenInfo().symbol} (Faucet)
+                </a>
+              )
             ) : !recommendation ? (
               <Button 
                 disabled={true}

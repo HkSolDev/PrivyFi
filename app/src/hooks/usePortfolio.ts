@@ -145,7 +145,13 @@ export function usePortfolio() {
       finally { setPricesLoading(false); }
     };
 
-    fetchTokens().then(list => { if (list.length) fetchPrices(list); });
+    const initPortfolio = async () => {
+      const list = await fetchTokens();
+      if (list.length) {
+        await fetchPrices(list);
+      }
+    };
+    initPortfolio();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [publicKey?.toBase58(), rpcEndpoint]);
 

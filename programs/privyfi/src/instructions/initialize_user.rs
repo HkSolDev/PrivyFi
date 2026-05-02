@@ -19,7 +19,7 @@ pub struct InitializeUser<'info> {
 }
 
 pub fn create_user(ctx: Context<InitializeUser>) -> Result<()> {
-    /// Get the UserProfile Account & setting the value in the UserProfile State
+    // Get the UserProfile Account & setting the value in the UserProfile State
     let user_profile = &mut ctx.accounts.user_profile;
     user_profile.owner = ctx.accounts.signer.key();
     user_profile.total_staked = 0;
@@ -27,7 +27,7 @@ pub fn create_user(ctx: Context<InitializeUser>) -> Result<()> {
     user_profile.private_mode = false;
     user_profile.bump = ctx.bumps.user_profile;
 
-    /// Get the UserRewaard Account and setting the value in the UserReward State
+    // Get the UserRewaard Account and setting the value in the UserReward State
     let user_reward = &mut ctx.accounts.user_reward;
     user_reward.owner = ctx.accounts.signer.key();
     user_reward.total_reward_points = 0;

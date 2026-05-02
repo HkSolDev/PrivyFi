@@ -24,22 +24,6 @@ export function useUserProfile() {
 
   useEffect(() => {
     fetchProfile();
-    
-    if (!program || !wallet) return;
-    
-    const { userProfilePda } = getPdas(wallet.publicKey, "");
-    
-    const subscriptionId = program.provider.connection.onAccountChange(
-      userProfilePda,
-      () => {
-        fetchProfile();
-      },
-      'confirmed'
-    );
-
-    return () => {
-      program.provider.connection.removeAccountChangeListener(subscriptionId);
-    };
   }, [program, wallet, getPdas, fetchProfile]);
 
   return { profile, loading, refresh: fetchProfile };

@@ -2,10 +2,12 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useAnchorProgram } from './useAnchorProgram';
+import { useUserProfile } from './useUserProfile';
 import { PublicKey } from '@solana/web3.js';
 
 export function useRewards() {
   const { program, wallet, getPdas, recordAction, initializeUser } = useAnchorProgram();
+  const { profile } = useUserProfile();
   const [points, setPoints] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(true);
 
@@ -31,36 +33,22 @@ export function useRewards() {
       setPoints(prev => prev > 0 ? prev + Math.floor(Math.random() * 5) + 1 : 0);
     }, 2000);
 
-    if (!program || !wallet) return () => clearInterval(interval);
-    
-    const { userRewardPda } = getPdas(wallet.publicKey, "");
-    
-    // Simple subscription
-    const subscriptionId = program.provider.connection.onAccountChange(
-      userRewardPda,
-      (accountInfo) => {
-        fetchRewards();
-      },
-      'confirmed'
-    );
-
     return () => {
       clearInterval(interval);
-      program.provider.connection.removeAccountChangeListener(subscriptionId);
     };
   }, [program, wallet, getPdas, fetchRewards]);
 
   const addPoints = async (amount: number) => {
     if (!program || !wallet) return;
 
-    try {
-      // Ensure initialized
-      try {
-        await initializeUser();
-      } catch (e) {}
+    const isPrivate = profile?.privateMode || false;
 
-      await recordAction(amount);
-      // fetchRewards will be triggered by subscription
+    try {
+      await recordAction(amount, isPrivate);
+      // fetchRewards will be triggered by subscription or optimistic update
+      if (isPrivate) {
+        setPoints(prev => prev + amount); // Optimistic for MagicBlock speed
+      }
     } catch (e) {
       console.error("Failed to record action:", e);
     }
