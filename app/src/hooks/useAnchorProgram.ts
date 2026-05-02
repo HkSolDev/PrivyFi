@@ -75,6 +75,28 @@ export function useAnchorProgram() {
       .rpc();
   };
 
+  const initializePool = async (poolName: string, mintToken: PublicKey, apy: number) => {
+    if (!program || !wallet) return;
+
+    const { poolPda } = getPdas(wallet.publicKey, poolName);
+    const poolVault = getAssociatedTokenAddressSync(mintToken, poolPda, true);
+
+    const signature = await program.methods
+      .initializePool(poolName, new BN(apy))
+      .accountsPartial({
+        signer: wallet.publicKey,
+        pool: poolPda,
+        mintToken: mintToken,
+        poolVault: poolVault,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+      })
+      .rpc();
+
+    return signature;
+  };
+
   const deposit = async (poolName: string, mintToken: PublicKey, amount: number) => {
     if (!program || !wallet) return;
 
@@ -196,6 +218,7 @@ export function useAnchorProgram() {
     wallet, 
     getPdas, 
     initializeUser, 
+    initializePool,
     deposit,
     withdraw,
     togglePrivate,

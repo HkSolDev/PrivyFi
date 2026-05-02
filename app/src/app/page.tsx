@@ -10,7 +10,8 @@ import {
   ShieldCheck, 
   MessageSquare,
   Settings,
-  Bell
+  Bell,
+  Target
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
@@ -20,9 +21,10 @@ import PortfolioView from '@/components/views/PortfolioView';
 import YieldView from '@/components/views/YieldView';
 import PrivacyView from '@/components/views/PrivacyView';
 import VaultsView from '@/components/views/VaultsView';
+import PredictView from '@/components/views/PredictView';
 import AISwarmConsensus from '@/components/AISwarmConsensus';
 
-type ViewType = 'dashboard' | 'portfolio' | 'yield' | 'vaults' | 'privacy' | 'settings';
+type ViewType = 'dashboard' | 'portfolio' | 'yield' | 'vaults' | 'privacy' | 'settings' | 'predict';
 
 export default function Home() {
   const { connected } = useWallet();
@@ -43,6 +45,8 @@ export default function Home() {
         return <PortfolioView />;
       case 'yield':
         return <YieldView />;
+      case 'predict':
+        return <PredictView />;
       case 'vaults':
         return <VaultsView />;
       case 'privacy':
@@ -85,6 +89,12 @@ export default function Home() {
             label="Yield" 
             active={activeTab === 'yield'} 
             onClick={() => setActiveTab('yield')}
+          />
+          <NavItem 
+            icon={<Target size={20} />} 
+            label="Predict" 
+            active={activeTab === 'predict'} 
+            onClick={() => setActiveTab('predict')}
           />
           <NavItem 
             icon={<Lock size={20} />} 
@@ -186,9 +196,9 @@ export default function Home() {
           onClick={() => setActiveTab('yield')}
         />
         <MobileNavItem 
-          icon={<MessageSquare size={20} />} 
-          active={activeTab === 'settings'} 
-          onClick={() => setActiveTab('settings')} // Mock for AI on mobile
+          icon={<Target size={20} />} 
+          active={activeTab === 'predict'} 
+          onClick={() => setActiveTab('predict')}
         />
       </nav>
     </div>

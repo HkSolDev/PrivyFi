@@ -6,7 +6,9 @@ import {
   TrendingDown,
   Wallet,
   Activity,
-  Loader2
+  Loader2,
+  Brain,
+  Sparkles
 } from 'lucide-react';
 import { usePortfolio } from '@/hooks/usePortfolio';
 import { useUserProfile } from '@/hooks/useUserProfile';
@@ -26,6 +28,8 @@ export default function DashboardView() {
   const { strategies, loading: yieldLoading } = useYield();
   const { getUserPositions, wallet } = useAnchorProgram();
   const [stakedValue, setStakedValue] = useState(0);
+  const [suggestion, setSuggestion] = useState<any>(null);
+  const [suggestLoading, setSuggestLoading] = useState(false);
 
   const [selectedStrategy, setSelectedStrategy] = useState<any>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -40,6 +44,31 @@ export default function DashboardView() {
     }
     fetchStaked();
   }, [wallet]);
+
+  // AI Smart Suggestion Logic
+  useEffect(() => {
+    async function fetchSuggestion() {
+      if (tokens.length > 0 && strategies.length > 0 && !suggestion && !suggestLoading) {
+        setSuggestLoading(true);
+        try {
+          const res = await fetch('/api/ai/suggest', {
+            method: 'POST',
+            body: JSON.stringify({ portfolio: tokens, strategies }),
+          });
+          const data = await res.json();
+          const match = strategies.find(s => s.id === data.strategyId);
+          if (match) {
+            setSuggestion({ ...match, reason: data.reason });
+          }
+        } catch (e) {
+          console.error("Suggestion failed", e);
+        } finally {
+          setSuggestLoading(false);
+        }
+      }
+    }
+    fetchSuggestion();
+  }, [tokens, strategies]);
 
   const isPrivate = profile?.privateMode || false;
 
@@ -72,6 +101,40 @@ export default function DashboardView() {
           trend="neutral"
         />
       </div>
+
+      {/* AI Smart Suggestion Card */}
+      {suggestion && (
+        <Card className="bg-gradient-to-r from-purple-900/40 to-blue-900/40 border-purple-500/30 relative overflow-hidden group hover:border-purple-500/50 transition-all">
+          <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-110 transition-transform">
+            <Brain size={120} />
+          </div>
+          <CardHeader className="pb-2">
+            <div className="flex items-center gap-2 mb-1">
+              <Sparkles size={16} className="text-yellow-400 animate-pulse" />
+              <Badge className="bg-purple-600 text-[10px] font-black uppercase tracking-widest px-2">AI Smart Pick</Badge>
+            </div>
+            <CardTitle className="text-2xl font-black text-white">Suggested for Your Wallet</CardTitle>
+            <CardDescription className="text-purple-200/70 font-medium">{suggestion.reason}</CardDescription>
+          </CardHeader>
+          <CardContent className="flex items-center justify-between pt-4">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center border border-white/10">
+                <TrendingUp size={24} className="text-white" />
+              </div>
+              <div>
+                <h4 className="font-bold text-white text-lg">{suggestion.name}</h4>
+                <p className="text-xs text-purple-300/60 uppercase font-black">{suggestion.protocol} • {suggestion.apy} APY</p>
+              </div>
+            </div>
+            <Button 
+              onClick={() => { setSelectedStrategy(suggestion); setIsModalOpen(true); }}
+              className="bg-white text-purple-900 font-black hover:bg-white/90 px-8 h-12 rounded-xl shadow-2xl shadow-purple-900/50"
+            >
+              Analyze & Deposit
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Chart Section */}
       <Card className="bg-[#0d0d12]/40 border-white/5 relative overflow-hidden purple-glow p-4">

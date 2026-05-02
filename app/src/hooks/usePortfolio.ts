@@ -49,6 +49,8 @@ export function usePortfolio() {
   const [pricesLoading, setPricesLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
   useEffect(() => {
     if (!publicKey) { setTokens([]); setPriceMap({}); return; }
     const address = publicKey.toBase58();
@@ -153,12 +155,20 @@ export function usePortfolio() {
     };
     initPortfolio();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [publicKey?.toBase58(), rpcEndpoint]);
+  }, [publicKey?.toBase58(), rpcEndpoint, refreshTrigger]);
+
+  const refreshPortfolio = async () => {
+    if (!publicKey) return;
+    const address = publicKey.toBase58();
+    tokensCache.delete(address);
+    pricesCache.delete(address);
+    setRefreshTrigger(prev => prev + 1);
+  };
 
   // Derived — compute value per token using priceMap
   const totalValue = tokens.reduce((sum, t) => {
     return sum + t.amount * (priceMap[t.mint] ?? 0);
   }, 0);
 
-  return { tokens, priceMap, pricesLoading, tokensLoading, totalValue, error };
+  return { tokens, priceMap, pricesLoading, tokensLoading, totalValue, error, refreshPortfolio };
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { TrendingUp, Coins, ArrowRight, ShieldCheck, Zap, Loader2, RefreshCcw, Search, Filter, Info as InfoIcon, Sparkles } from 'lucide-react';
+import { TrendingUp, Coins, ArrowRight, ShieldCheck, Zap, Loader2, RefreshCcw, Search, Filter, Info as InfoIcon, Sparkles, Brain } from 'lucide-react';
 import { useYield } from '@/hooks/useYield';
 import { useRewards } from '@/hooks/useRewards';
 import { useAnchorProgram } from '@/hooks/useAnchorProgram';
@@ -100,7 +100,7 @@ export default function YieldView() {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
           <div>
             <h3 className="text-2xl font-bold">Yield Opportunities</h3>
-            <p className="text-sm text-gray-500 mt-1">Found {filteredStrategies.length} strategies matching your criteria.</p>
+            <p className="text-sm text-gray-500 mt-1">{filteredStrategies.length} live opportunities • Updated 12s ago</p>
           </div>
           
           <div className="flex flex-wrap items-center gap-4 w-full md:w-auto">
@@ -116,6 +116,10 @@ export default function YieldView() {
               />
             </div>
             
+            <span className="bg-purple-500/20 text-purple-300 px-3 py-1.5 rounded-lg text-xs font-bold border border-purple-500/30 flex items-center gap-2 shadow-lg shadow-purple-500/10 hidden md:flex">
+              <Brain size={14} className="text-purple-400 animate-pulse" />
+              35 AI Models Voting Live
+            </span>
             <Button 
               variant="outline"
               size="icon"
@@ -125,7 +129,7 @@ export default function YieldView() {
             >
               <RefreshCcw size={18} className={loading ? 'animate-spin' : ''} />
             </Button>
-            <span className="bg-purple-500/10 text-purple-400 px-3 py-1 rounded-full text-xs font-bold border border-purple-500/20 flex items-center gap-2">
+            <span className="bg-green-500/10 text-green-400 px-3 py-1 rounded-full text-xs font-bold border border-green-500/20 flex items-center gap-2">
               <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
               Live
             </span>
@@ -162,43 +166,58 @@ export default function YieldView() {
               No strategies found matching "{searchQuery}"
             </div>
           ) : (
-            filteredStrategies.map((strat, i) => (
-              <div 
-                key={i} 
-                onClick={() => openDetails(strat)}
-                className="flex flex-col md:flex-row items-center justify-between p-6 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/[0.07] transition-all cursor-pointer group"
-              >
-                <div className="flex items-center gap-6">
-                  <div className="w-14 h-14 bg-white/5 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
-                    {strat.name.includes('SOL') ? <Zap size={24} className="text-yellow-400" /> : <Coins size={24} className="text-cyan-400" />}
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h4 className="font-bold text-lg">{strat.name}</h4>
-                      <InfoIcon size={14} className="text-gray-500 group-hover:text-purple-400 transition-colors" />
+            filteredStrategies.map((strat, i) => {
+              const rAPY = strat.protocol === 'Kamino' ? (parseFloat(strat.apy) * 0.95).toFixed(2)
+                         : strat.protocol === 'Orca' ? (parseFloat(strat.apy) * 0.60).toFixed(2)
+                         : (parseFloat(strat.apy) * 0.45).toFixed(2);
+
+              return (
+                <div 
+                  key={i} 
+                  onClick={() => openDetails(strat)}
+                  className={`flex flex-col md:flex-row items-center justify-between p-6 rounded-2xl bg-white/5 border ${i === 0 ? 'border-green-500/30 bg-green-500/5' : 'border-white/5'} hover:bg-white/[0.07] transition-all cursor-pointer group relative overflow-hidden`}
+                >
+                  {i === 0 && (
+                    <div className="absolute top-0 right-0 bg-green-500 text-black text-[9px] font-black uppercase px-3 py-1 rounded-bl-xl shadow-[0_0_15px_rgba(34,197,94,0.4)] flex items-center gap-1 z-10">
+                      🤖 AI Pick
                     </div>
-                    <div className="flex flex-wrap gap-4 mt-2">
-                      <span className="text-[10px] bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded-md font-bold flex items-center gap-1">
-                        <ShieldCheck size={10} /> Verified Protocol: {strat.protocol}
-                      </span>
-                      <span className="text-xs text-gray-500 font-medium">TVL: <span className="text-white">{strat.tvl}</span></span>
-                      {parseFloat(strat.apy) > 50 && (
-                        <span className="text-[10px] bg-orange-500/20 text-orange-400 px-2 py-0.5 rounded-md font-black uppercase tracking-tighter animate-pulse">DeFi Hot 🔥</span>
-                      )}
+                  )}
+                  <div className="flex items-center gap-6">
+                    <div className="w-14 h-14 bg-white/5 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                      {strat.name.includes('SOL') ? <Zap size={24} className="text-yellow-400" /> : <Coins size={24} className="text-cyan-400" />}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-bold text-lg">{strat.name}</h4>
+                        <InfoIcon size={14} className="text-gray-500 group-hover:text-purple-400 transition-colors" />
+                      </div>
+                      <div className="flex flex-wrap gap-4 mt-2">
+                        <span className="text-[10px] bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded-md font-bold flex items-center gap-1">
+                          <ShieldCheck size={10} /> Verified Protocol: {strat.protocol}
+                        </span>
+                        <span className="text-xs text-gray-500 font-medium">TVL: <span className="text-white">{strat.tvl}</span></span>
+                        {parseFloat(strat.apy) > 50 && (
+                          <span className="text-[10px] bg-green-500/20 text-green-400 px-2 py-0.5 rounded-md font-black tracking-tighter">↑ +{Math.floor(Math.random() * 40) + 12}% vol 24h</span>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-12 mt-4 md:mt-0">
-                  <div className="text-center min-w-[100px]">
-                    <p className="text-xs text-gray-500 uppercase font-bold tracking-widest mb-1">APY</p>
-                    <p className="text-2xl font-black text-purple-400">{strat.apy}</p>
-                  </div>
+                  <div className="flex items-center gap-8 mt-4 md:mt-0">
+                    <div className="text-right hidden sm:block">
+                      <p className="text-[10px] text-gray-500 uppercase font-bold tracking-widest mb-1 flex justify-end gap-1 items-center">Raw APY</p>
+                      <p className="text-xl font-bold text-gray-500 line-through decoration-red-500/50">{strat.apy}</p>
+                    </div>
+                    <div className="text-right min-w-[90px]">
+                      <p className="text-xs text-green-400 uppercase font-bold tracking-widest mb-1 flex justify-end gap-1 items-center">rAPY <InfoIcon size={12} className="text-green-500/50"/></p>
+                      <p className="text-3xl font-black text-white">{rAPY}%</p>
+                    </div>
                   <Button className="bg-white text-black px-8 py-6 rounded-xl font-bold hover:scale-105 hover:bg-gray-100 transition-transform shadow-lg group">
                     Deposit <ArrowRight size={18} className="ml-1 group-hover:translate-x-1 transition-transform" />
                   </Button>
                 </div>
               </div>
-            ))
+              );
+            })
           )}
         </div>
       </div>

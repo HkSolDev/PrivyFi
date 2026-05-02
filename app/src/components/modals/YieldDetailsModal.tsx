@@ -8,6 +8,9 @@ import { PublicKey } from '@solana/web3.js';
 import { toast } from 'sonner'; // Assuming sonner is available or I'll use a simple alert
 import { useAIRecommendation } from '@/hooks/useAIRecommendation';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { usePortfolio } from '@/hooks/usePortfolio';
+import { getPersona, getConsensusLabel, SPECIALTY_STYLES, Specialty } from '@/lib/model-personas';
 
 interface YieldDetailsModalProps {
   strategy: any;
@@ -20,11 +23,15 @@ export default function YieldDetailsModal({ strategy, isOpen, onClose }: YieldDe
   const [isWithdrawing, setIsWithdrawing] = useState(false);
   const [isFauceting, setIsFauceting] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [selectedTab, setSelectedTab] = useState<'All' | Specialty>('All');
+  const [showAllVotes, setShowAllVotes] = useState(false);
 
   const { analyzeStrategy, recommendation, loading: loadingAi, reset: resetAi, loadFromCache } = useAIRecommendation();
-  const { deposit, withdraw, initializeUser, program, wallet, getPdas, connection } = useAnchorProgram();
+  const { deposit, withdraw, initializeUser, initializePool, program, wallet, getPdas, connection } = useAnchorProgram();
+  const { tokens: portfolioTokens, tokensLoading, refreshPortfolio } = usePortfolio();
+  
   const [currentStake, setCurrentStake] = useState<number>(0);
-  const [tokenBalance, setTokenBalance] = useState<number | null>(null);
+  const [depositAmount, setDepositAmount] = useState<string>('10');
 
   const MINT_ADDRESSES: Record<string, string> = {
     'USDC': process.env.NEXT_PUBLIC_FAKE_USDC_MINT || 'Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr',
@@ -56,19 +63,10 @@ export default function YieldDetailsModal({ strategy, isOpen, onClose }: YieldDe
     return { mint: MINT_ADDRESSES.USDC, faucet: FAUCET_LINKS.USDC, symbol: 'USDC', programId: TOKEN_PROGRAMS.USDC };
   };
 
-  const refreshBalance = async () => {
-    if (wallet && connection) {
-      try {
-        const { mint, programId } = getTokenInfo();
-        const { getAssociatedTokenAddressSync } = await import('@solana/spl-token');
-        const ata = getAssociatedTokenAddressSync(new PublicKey(mint), wallet.publicKey, false, new PublicKey(programId));
-        const balance = await connection.getTokenAccountBalance(ata);
-        setTokenBalance(balance.value.uiAmount);
-      } catch (e) {
-        setTokenBalance(0);
-      }
-    }
-  };
+  const tokenInfo = getTokenInfo();
+  const foundToken = portfolioTokens.find(t => t.mint === tokenInfo.mint);
+  const tokenBalance = foundToken ? foundToken.amount : 0;
+  const isBalanceLoading = tokensLoading && portfolioTokens.length === 0;
 
   useEffect(() => {
     async function init() {
@@ -81,8 +79,6 @@ export default function YieldDetailsModal({ strategy, isOpen, onClose }: YieldDe
           } catch (e) {
             setCurrentStake(0);
           }
-
-          await refreshBalance();
         }
         
         const cacheHit = loadFromCache(strategy);
@@ -120,8 +116,19 @@ export default function YieldDetailsModal({ strategy, isOpen, onClose }: YieldDe
       });
 
       if (!response.ok) throw new Error("Faucet request failed");
-      toast.success(`Received 1,000 ${symbol}!`);
-      await refreshBalance();
+      toast.success(`Received 1,000 ${symbol}! Refreshing balance...`);
+      
+      // Poll to ensure the new balance is captured even if RPC is delayed
+      let checks = 0;
+      const interval = setInterval(() => {
+        refreshPortfolio();
+        checks++;
+        if (checks > 5) clearInterval(interval); // Poll every 3s for 15s
+      }, 3000);
+      
+      // Trigger an immediate refresh attempt
+      refreshPortfolio();
+
     } catch (e: any) {
       toast.error(`Faucet Error: ${e.message}`);
     } finally {
@@ -135,6 +142,17 @@ export default function YieldDetailsModal({ strategy, isOpen, onClose }: YieldDe
       return;
     }
 
+    const amountNum = parseFloat(depositAmount);
+    if (isNaN(amountNum) || amountNum <= 0) {
+      toast.error("Please enter a valid amount");
+      return;
+    }
+
+    if (tokenBalance !== null && amountNum > tokenBalance) {
+      toast.error("Insufficient balance");
+      return;
+    }
+
     setIsDepositing(true);
     try {
       try {
@@ -144,14 +162,30 @@ export default function YieldDetailsModal({ strategy, isOpen, onClose }: YieldDe
       const poolName = strategy.name;
       const { mint, programId } = getTokenInfo();
       const mockMint = new PublicKey(mint);
-      const tokenProgram = new PublicKey(programId);
 
-      toast.info(`Depositing ${strategy.name.includes('SOL') ? 'SOL' : 'tokens'} to vault...`);
-      const tx = await deposit(poolName, mockMint, 1000000); 
+      toast.info(`Depositing ${depositAmount} ${getTokenInfo().symbol} to vault...`);
+      // Convert to lamports (assuming 6 decimals for USDC/PUSD/AUDD)
+      const lamports = Math.floor(amountNum * 1_000_000);
+      
+      try {
+        await deposit(poolName, mockMint, lamports);
+      } catch (depositError: any) {
+        // If the pool isn't initialized yet (e.g. for dynamic external strategies like ORCA),
+        // we catch the AccountNotInitialized error, initialize it, and retry.
+        if (depositError.message && (depositError.message.includes('AccountNotInitialized') || depositError.message.includes('3012'))) {
+          toast.info(`Initializing new strategy pool on-chain...`);
+          const apy = parseInt(strategy.apy) || 0;
+          await initializePool(poolName, mockMint, apy);
+          toast.info(`Pool ready! Retrying deposit...`);
+          await deposit(poolName, mockMint, lamports);
+        } else {
+          throw depositError; // Rethrow if it's a different error
+        }
+      }
       
       toast.success("Deposit successful!");
       setSuccess(true);
-      setCurrentStake(prev => prev + 1); 
+      setCurrentStake(prev => prev + amountNum); 
       setTimeout(() => setSuccess(false), 5000);
     } catch (e: any) {
       toast.error(`Deposit failed: ${e.message || "Unknown error"}`);
@@ -162,15 +196,22 @@ export default function YieldDetailsModal({ strategy, isOpen, onClose }: YieldDe
 
   const handleWithdraw = async () => {
     if (!wallet) return;
+    const amountNum = parseFloat(depositAmount);
+    if (isNaN(amountNum) || amountNum <= 0) {
+      toast.error("Enter amount to withdraw");
+      return;
+    }
+
     setIsWithdrawing(true);
     try {
-      toast.info("Withdrawing from vault...");
+      toast.info(`Withdrawing ${depositAmount} from vault...`);
       const poolName = strategy.name;
       const { mint } = getTokenInfo();
       const mockMint = new PublicKey(mint);
-      const tx = await withdraw(poolName, mockMint, 1000000); 
+      const lamports = Math.floor(amountNum * 1_000_000);
+      const tx = await withdraw(poolName, mockMint, lamports); 
       toast.success("Withdraw successful!");
-      setCurrentStake(prev => Math.max(0, prev - 1));
+      setCurrentStake(prev => Math.max(0, prev - amountNum));
     } catch (e: any) {
       toast.error(`Withdraw failed: ${e.message || "Unknown error"}`);
     } finally {
@@ -318,25 +359,74 @@ export default function YieldDetailsModal({ strategy, isOpen, onClose }: YieldDe
           {/* Educational Content / Swarm Visualizer */}
           {recommendation?.swarmVotes && recommendation.swarmVotes.length > 0 ? (
             <div className="space-y-4">
-              <h4 className="font-bold flex items-center gap-2 mb-4 text-white">
-                <Brain size={18} className="text-purple-400" /> 
-                Individual AI Node Votes
-              </h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {recommendation.swarmVotes.map((v: any, idx: number) => (
-                  <div key={idx} className="bg-white/5 border border-white/5 p-3 rounded-xl flex items-center justify-between">
-                    <div className="flex flex-col">
-                      <span className="text-xs font-mono text-gray-400">{v.model}</span>
-                      <span className="text-xs text-gray-500 truncate max-w-[150px]">{v.reasoning || "Analyzed successfully"}</span>
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="font-bold flex items-center gap-2 text-white">
+                  <Brain size={18} className="text-purple-400" /> 
+                  AI Swarm Consensus
+                </h4>
+                {(() => {
+                  const mappedVotes = recommendation.swarmVotes.map((v: any) => ({ verdict: v.vote === 'Recommended' ? 'RECOMMENDED' : 'CAUTION' }));
+                  const consensus = getConsensusLabel(mappedVotes);
+                  return (
+                    <div className="px-3 py-1 rounded-full text-xs font-bold border" style={{ backgroundColor: `${consensus.color}20`, color: consensus.color, borderColor: `${consensus.color}40` }}>
+                      {consensus.label} WINNER
                     </div>
-                    <div className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${
-                      v.vote === 'Recommended' ? 'bg-green-500/20 text-green-400' : 'bg-orange-500/20 text-orange-400'
-                    }`}>
-                      {v.vote}
-                    </div>
-                  </div>
+                  );
+                })()}
+              </div>
+              
+              <div className="flex flex-wrap gap-2 mb-4">
+                {['All', 'Risk', 'Yield', 'Speed', 'Stable', 'Deep'].map(tab => (
+                  <button
+                    key={tab}
+                    onClick={() => { setSelectedTab(tab as any); setShowAllVotes(false); }}
+                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-all ${
+                      selectedTab === tab 
+                        ? 'bg-purple-500 text-white shadow-lg shadow-purple-500/20' 
+                        : 'bg-white/5 text-gray-400 hover:bg-white/10'
+                    }`}
+                  >
+                    {tab}
+                  </button>
                 ))}
               </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {recommendation.swarmVotes
+                  .map((v: any) => ({ ...v, persona: getPersona(v.model) }))
+                  .filter((v: any) => selectedTab === 'All' || v.persona.specialty === selectedTab)
+                  .slice(0, showAllVotes ? undefined : 4)
+                  .map((v: any, idx: number) => (
+                    <div key={idx} className="bg-white/5 border border-white/5 p-3 rounded-xl flex items-center justify-between hover:border-white/10 transition-colors">
+                      <div className="flex flex-col">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-sm">{v.persona.emoji}</span>
+                          <span className="text-xs font-bold" style={{ color: v.persona.color }}>{v.persona.name}</span>
+                        </div>
+                        <span className="text-[10px] text-gray-500 truncate max-w-[150px]">{v.persona.role}</span>
+                      </div>
+                      <div className="flex flex-col items-end gap-1">
+                        <div className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${
+                          v.vote === 'Recommended' ? 'bg-green-500/20 text-green-400' : 'bg-orange-500/20 text-orange-400'
+                        }`}>
+                          {v.vote}
+                        </div>
+                        <div className={`px-1.5 py-0.5 rounded text-[8px] font-bold uppercase ${SPECIALTY_STYLES[v.persona.specialty as Specialty]}`}>
+                          {v.persona.specialty}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+              
+              {recommendation.swarmVotes.filter((v: any) => selectedTab === 'All' || getPersona(v.model).specialty === selectedTab).length > 4 && (
+                <button 
+                  onClick={() => setShowAllVotes(!showAllVotes)}
+                  className="w-full py-2 bg-white/5 hover:bg-white/10 text-gray-400 text-xs font-bold rounded-xl transition-all"
+                >
+                  {showAllVotes ? 'Show Less' : `See all ${recommendation.swarmVotes.filter((v: any) => selectedTab === 'All' || getPersona(v.model).specialty === selectedTab).length} votes`}
+                </button>
+              )}
             </div>
           ) : (
             <div className="p-4 bg-orange-500/5 border border-orange-500/10 rounded-2xl">
@@ -351,6 +441,33 @@ export default function YieldDetailsModal({ strategy, isOpen, onClose }: YieldDe
               </p>
             </div>
           )}
+          {/* Amount Input */}
+          <div className="bg-white/5 border border-white/10 rounded-3xl p-6 mt-8">
+            <div className="flex justify-between items-center mb-4">
+              <label className="text-sm font-bold text-gray-400">Amount to Invest</label>
+              <div className="text-xs text-purple-400 font-medium">
+                Balance: {isBalanceLoading ? 'Loading...' : `${tokenBalance.toLocaleString()} ${tokenInfo.symbol}`}
+              </div>
+            </div>
+            
+            <div className="relative">
+              <Input 
+                type="number" 
+                value={depositAmount}
+                onChange={(e) => setDepositAmount(e.target.value)}
+                placeholder="0.00"
+                className="w-full bg-black/40 border border-white/10 rounded-2xl py-8 px-6 text-2xl font-black text-white focus:outline-none focus:border-purple-500/50 transition-all h-auto"
+              />
+              <button 
+                onClick={() => {
+                  if (tokenBalance !== null) setDepositAmount(tokenBalance.toString());
+                }}
+                className="absolute right-4 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-purple-500/20 text-purple-400 text-[10px] font-black rounded-lg hover:bg-purple-500/40 transition-all border border-purple-500/20"
+              >
+                MAX
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Footer */}
@@ -382,33 +499,34 @@ export default function YieldDetailsModal({ strategy, isOpen, onClose }: YieldDe
                 {isWithdrawing ? <Loader2 className="animate-spin" size={16} /> : 'Withdraw'}
               </Button>
             )}
-            {tokenBalance === 0 ? (
-              (getTokenInfo().symbol === 'PUSD' || getTokenInfo().symbol === 'AUDD') ? (
+            {tokenBalance === 0 && !isBalanceLoading ? (
+              (tokenInfo.symbol === 'PUSD' || tokenInfo.symbol === 'AUDD') ? (
                 <Button 
                   onClick={handleFaucet}
                   disabled={isFauceting}
                   className="flex-1 md:flex-none px-10 py-6 rounded-2xl bg-yellow-500 text-black font-black hover:scale-105 active:scale-95 transition-all text-center flex items-center justify-center gap-2 h-auto"
                 >
                   {isFauceting ? <Loader2 className="animate-spin" size={20} /> : <Zap size={20} />}
-                  Get Devnet {getTokenInfo().symbol} (Airdrop)
+                  Get Devnet {tokenInfo.symbol} (Airdrop)
                 </Button>
               ) : (
                 <a 
-                  href={getTokenInfo().faucet}
+                  href={tokenInfo.faucet}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex-1 md:flex-none px-10 py-4 rounded-2xl bg-yellow-500 text-black font-black hover:scale-105 active:scale-95 transition-all text-center flex items-center justify-center gap-2"
                 >
-                  Get Devnet {getTokenInfo().symbol} (Faucet)
+                  Get Devnet {tokenInfo.symbol} (Faucet)
                 </a>
               )
-            ) : !recommendation ? (
+            ) : (!recommendation || isBalanceLoading) ? (
               <Button 
                 disabled={true}
                 variant="secondary"
                 className="flex-1 md:flex-none px-10 py-6 rounded-2xl font-black bg-white/10 text-gray-500 cursor-not-allowed flex items-center justify-center gap-2 h-auto"
               >
-                <Lock size={20} /> Locked
+                {isBalanceLoading ? <Loader2 className="animate-spin" size={20} /> : <Lock size={20} />}
+                {isBalanceLoading ? 'Syncing...' : 'Locked'}
               </Button>
             ) : (
               <Button 
