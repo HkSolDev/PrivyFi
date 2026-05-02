@@ -2,11 +2,15 @@ use anchor_lang::prelude::*;
 
 #[derive(InitSpace)]
 #[account]
-//User position is like a receipt in the bank account when you deposit into your bank account you get a receipt when you deposite and bank also know since when the bank have to give the intereset on the deposite amount
+/// UserPosition is like a bank receipt — it records how much the user deposited,
+/// when they started, and is re-initialized cleanly each time they open a new position.
 pub struct UserPosition {
     pub owner: Pubkey,
     pub pool: Pubkey,
+    /// Timestamp of the very first deposit into this position slot
     pub start_time: i64,
+    /// Timestamp updated on every subsequent deposit
+    pub last_deposit_time: i64,
     pub amount: u64,
     pub bump: u8,
 }
