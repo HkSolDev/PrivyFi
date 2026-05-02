@@ -46,8 +46,8 @@ export function useAIRecommendation() {
   const [error, setError] = useState<string | null>(null);
   const [recommendation, setRecommendation] = useState<AIRecommendation | null>(null);
 
-  const analyzeStrategy = async (strategy: any, portfolio?: any) => {
-    const cacheKey = getCacheKey(strategy);
+  const analyzeStrategy = async (strategy: any, portfolio?: any, mode: 'single' | 'swarm' = 'single') => {
+    const cacheKey = getCacheKey(strategy) + '_' + mode;
 
     // Serve from cache instantly — no spinner, no API call
     if (recommendationCache.has(cacheKey)) {
@@ -64,7 +64,7 @@ export function useAIRecommendation() {
       const response = await fetch('/api/ai/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ strategy, portfolio }),
+        body: JSON.stringify({ strategy, portfolio, mode }),
       });
 
       if (!response.ok) throw new Error('Failed to get AI recommendation');

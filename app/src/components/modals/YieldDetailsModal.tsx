@@ -357,6 +357,16 @@ export default function YieldDetailsModal({ strategy, isOpen, onClose }: YieldDe
           </div>
 
           {/* Educational Content / Swarm Visualizer */}
+          {recommendation && (!recommendation.swarmVotes || recommendation.swarmVotes.length === 0) && (
+            <Button 
+              onClick={() => analyzeStrategy(strategy, undefined, 'swarm')}
+              disabled={loadingAi}
+              className="w-full mt-4 bg-purple-600/20 hover:bg-purple-600/40 text-purple-300 border border-purple-500/30 font-bold transition-all"
+            >
+              <Brain className="mr-2" size={18} /> Run Deep Research Swarm
+            </Button>
+          )}
+
           {recommendation?.swarmVotes && recommendation.swarmVotes.length > 0 ? (
             <div className="space-y-4">
               <div className="flex items-center justify-between mb-2">

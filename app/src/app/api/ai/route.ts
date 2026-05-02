@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
       {
         "vote": "Exact Pool Name",
         "confidence": 1-100,
-        "reason": "One short sentence"
+        "reason": "One short summary"
       }`
     };
 
