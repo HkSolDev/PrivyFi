@@ -8,7 +8,7 @@ pub use errors::*;
 pub use instructions::*;
 pub use state::*;
 
-declare_id!("Czmhx4o5349ugHqTjNEArm6eoakk2btihu4bcBCvdt36");
+declare_id!("FWNEG9fUyFNKs5qMLgGAZohuqhnT1Uex6sDVPKEdCKjA");
 
 #[program]
 pub mod privyfi {
@@ -31,12 +31,32 @@ pub mod privyfi {
         withdraw_handler(ctx, amount)
     }
 
-    pub fn toggle_private(ctx: Context<TogglePrivate>) -> Result<()> {
-        instructions::toggle_private::toggle_handler(ctx)
-    }
-
     pub fn record_action(ctx: Context<RecordAction>, amount: u64) -> Result<()> {
         reward_handler(ctx, amount)
+    }
+
+    pub fn initialize_accuracy_market(
+        ctx: Context<InitializeAccuracyMarket>,
+        base_price: u64,
+        precision_step: u64,
+    ) -> Result<()> {
+        initialize_accuracy_market_handler(ctx, base_price, precision_step)
+    }
+
+    pub fn place_prediction(
+        ctx: Context<PlacePrediction>,
+        predicted_bucket: u8,
+        amount: u64,
+    ) -> Result<()> {
+        place_prediction_handler(ctx, predicted_bucket, amount)
+    }
+
+    pub fn resolve_market(ctx: Context<ResolveMarket>) -> Result<()> {
+        resolve_market_handler(ctx)
+    }
+
+    pub fn claim_prediction(ctx: Context<ClaimPrediction>) -> Result<()> {
+        claim_prediction_handler(ctx)
     }
 
     pub fn initialize_faucet(ctx: Context<InitializeFaucet>) -> Result<()> {

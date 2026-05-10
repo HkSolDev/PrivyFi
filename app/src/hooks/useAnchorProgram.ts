@@ -1,15 +1,27 @@
 import { useMemo, useCallback } from 'react';
 import { Connection, PublicKey, SystemProgram, Transaction } from '@solana/web3.js';
 import { AnchorProvider, Program, Idl, BN } from '@coral-xyz/anchor';
-import { useAnchorWallet, useConnection, useWallet } from '@solana/wallet-adapter-react';
+import { useWalletSession } from '@solana/react-hooks';
 import { TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync, ASSOCIATED_TOKEN_PROGRAM_ID, createAssociatedTokenAccountIdempotentInstruction } from '@solana/spl-token';
 import idl from '@/idl/privyfi.json';
 import { Privyfi } from '@/idl/privyfi';
 
 export function useAnchorProgram() {
-  const { connection } = useConnection();
-  const wallet = useAnchorWallet();
-  const { sendTransaction } = useWallet();
+  const session = useWalletSession();
+  const addressString = session?.account.address;
+  const publicKey = useMemo(() => addressString ? new PublicKey(addressString) : null, [addressString]);
+  
+  const connection = useMemo(() => new Connection('http://127.0.0.1:8899', 'confirmed'), []);
+  
+  // Create a mock wallet interface that AnchorProvider accepts
+  const wallet = useMemo(() => {
+    if (!publicKey) return null;
+    return {
+      publicKey,
+      signTransaction: async (tx: any) => tx, // Mocked for now
+      signAllTransactions: async (txs: any[]) => txs, // Mocked for now
+    } as any;
+  }, [publicKey]);
 
   const program = useMemo(() => {
     if (!wallet) return null;

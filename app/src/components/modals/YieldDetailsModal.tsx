@@ -228,28 +228,28 @@ export default function YieldDetailsModal({ strategy, isOpen, onClose }: YieldDe
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={onClose} />
       
-      <div className="relative glass-card !p-0 w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in duration-300">
+      <div className="relative glass-card !p-0 w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in duration-300 mx-2">
         {/* Header */}
-        <div className="p-8 border-b border-white/5 flex justify-between items-start bg-gradient-to-r from-purple-500/10 to-transparent">
-          <div className="flex gap-4">
-            <div className="w-16 h-16 bg-white/5 rounded-3xl flex items-center justify-center border border-white/10">
-              <Zap size={32} className="text-yellow-400" />
+        <div className="p-5 md:p-8 border-b border-white/5 flex justify-between items-start bg-gradient-to-r from-purple-500/10 to-transparent">
+          <div className="flex gap-3 md:gap-4">
+            <div className="w-12 h-12 md:w-16 md:h-16 bg-white/5 rounded-2xl md:rounded-3xl flex items-center justify-center border border-white/10 flex-shrink-0">
+              <Zap size={28} className="text-yellow-400" />
             </div>
             <div>
-              <h2 className="text-3xl font-black">{strategy.name}</h2>
-              <p className="text-purple-400 font-bold flex items-center gap-2">
-                <Info size={14} /> Powered by {strategy.protocol}
+              <h2 className="text-xl md:text-3xl font-black">{strategy.name}</h2>
+              <p className="text-purple-400 font-bold flex items-center gap-2 text-sm">
+                <Info size={13} /> Powered by {strategy.protocol}
               </p>
             </div>
           </div>
-          <Button variant="ghost" size="icon" onClick={onClose} className="text-gray-500 hover:text-white transition-colors hover:bg-white/5 rounded-xl">
-            <X size={24} />
+          <Button variant="ghost" size="icon" onClick={onClose} className="text-gray-500 hover:text-white transition-colors hover:bg-white/5 rounded-xl flex-shrink-0">
+            <X size={22} />
           </Button>
         </div>
 
         {/* Content */}
-        <div className="p-8 max-h-[70vh] overflow-y-auto custom-scrollbar">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <div className="p-5 md:p-8 max-h-[60vh] md:max-h-[70vh] overflow-y-auto custom-scrollbar">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6 mb-8">
             <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
               <p className="text-[10px] text-gray-500 font-black uppercase mb-1">Live APY</p>
               <p className="text-2xl font-black text-green-400">{strategy.apy}</p>
@@ -479,92 +479,85 @@ export default function YieldDetailsModal({ strategy, isOpen, onClose }: YieldDe
             </div>
           </div>
         </div>
-
-        {/* Footer */}
-        <div className="p-8 border-t border-white/5 bg-white/5 flex flex-col md:flex-row gap-4 items-center justify-between">
-          <p className="text-xs text-gray-500 max-w-xs text-center md:text-left">
+        <div className="p-5 md:p-8 border-t border-white/5 bg-white/5 flex flex-col gap-3">
+          <p className="text-xs text-gray-500 text-center md:text-left">
             Ready to start? Solflare/dFlow will route your swap, and the deposit will be processed through our secure vault.
           </p>
-          <div className="flex gap-4 w-full md:w-auto">
-            <a 
+          <div className="flex flex-col sm:flex-row gap-3 w-full">
+            <a
               href={
-                strategy.protocol === 'Meteora' 
+                strategy.protocol === 'Meteora'
                   ? (strategy.address?.length > 20 ? `https://dlmm.meteora.ag/pair/${strategy.address}` : 'https://dlmm.meteora.ag')
                   : strategy.protocol === 'Kamino' ? 'https://app.kamino.finance'
                   : 'https://jup.ag'
               }
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-2 px-6 py-4 rounded-2xl bg-white/5 border border-white/10 text-gray-400 hover:text-white transition-all text-sm font-bold shadow-xl whitespace-nowrap"
+              className="flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-white/5 border border-white/10 text-gray-400 hover:text-white transition-all text-sm font-bold shadow-xl whitespace-nowrap"
             >
               View on {strategy.protocol} <ExternalLink size={14} />
             </a>
             {currentStake > 0 && (
-              <Button 
+              <Button
                 variant="outline"
                 onClick={handleWithdraw}
                 disabled={isWithdrawing}
-                className="px-6 py-6 rounded-2xl font-bold border-white/10 hover:bg-white/5 transition-all flex items-center justify-center gap-2"
+                className="flex-1 px-5 py-5 rounded-2xl font-bold border-white/10 hover:bg-white/5 transition-all flex items-center justify-center gap-2"
               >
                 {isWithdrawing ? <Loader2 className="animate-spin" size={16} /> : 'Withdraw'}
               </Button>
             )}
             {tokenBalance === 0 && !isBalanceLoading ? (
               (tokenInfo.symbol === 'PUSD' || tokenInfo.symbol === 'AUDD') ? (
-                <Button 
+                <Button
                   onClick={handleFaucet}
                   disabled={isFauceting}
-                  className="flex-1 md:flex-none px-10 py-6 rounded-2xl bg-yellow-500 text-black font-black hover:scale-105 active:scale-95 transition-all text-center flex items-center justify-center gap-2 h-auto"
+                  className="flex-1 px-8 py-5 rounded-2xl bg-yellow-500 text-black font-black hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-2 h-auto"
                 >
                   {isFauceting ? <Loader2 className="animate-spin" size={20} /> : <Zap size={20} />}
-                  Get Devnet {tokenInfo.symbol} (Airdrop)
+                  Get Devnet {tokenInfo.symbol}
                 </Button>
               ) : (
-                <a 
+                <a
                   href={tokenInfo.faucet}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex-1 md:flex-none px-10 py-4 rounded-2xl bg-yellow-500 text-black font-black hover:scale-105 active:scale-95 transition-all text-center flex items-center justify-center gap-2"
+                  className="flex-1 px-8 py-3 rounded-2xl bg-yellow-500 text-black font-black hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-2"
                 >
-                  Get Devnet {tokenInfo.symbol} (Faucet)
+                  Get Devnet {tokenInfo.symbol}
                 </a>
               )
             ) : (!recommendation || isBalanceLoading) ? (
-              <Button 
+              <Button
                 disabled={true}
                 variant="secondary"
-                className="flex-1 md:flex-none px-10 py-6 rounded-2xl font-black bg-white/10 text-gray-500 cursor-not-allowed flex items-center justify-center gap-2 h-auto"
+                className="flex-1 px-8 py-5 rounded-2xl font-black bg-white/10 text-gray-500 cursor-not-allowed flex items-center justify-center gap-2 h-auto"
               >
                 {isBalanceLoading ? <Loader2 className="animate-spin" size={20} /> : <Lock size={20} />}
                 {isBalanceLoading ? 'Syncing...' : 'Locked'}
               </Button>
             ) : (
-              <Button 
+              <Button
                 onClick={handleStartEarning}
                 disabled={isDepositing || success}
-                className={`flex-1 md:flex-none px-10 py-6 rounded-2xl font-black transition-all flex items-center justify-center gap-2 shadow-2xl h-auto ${
-                  success 
-                    ? 'bg-green-500 text-white hover:bg-green-600' 
+                className={`flex-1 px-8 py-5 rounded-2xl font-black transition-all flex items-center justify-center gap-2 shadow-2xl h-auto ${
+                  success
+                    ? 'bg-green-500 text-white hover:bg-green-600'
                     : 'bg-white text-black hover:bg-gray-100 hover:scale-105 active:scale-95'
                 }`}
               >
                 {isDepositing ? (
-                  <>
-                    <Loader2 className="animate-spin" size={20} /> Processing...
-                  </>
+                  <><Loader2 className="animate-spin" size={20} /> Processing...</>
                 ) : success ? (
-                  <>
-                    <CheckCircle2 size={20} /> Deposited!
-                  </>
+                  <><CheckCircle2 size={20} /> Deposited!</>
                 ) : (
-                  <>
-                    <Unlock size={20} className="mr-1" /> Deposit & Earn <ArrowUpRight size={20} />
-                  </>
+                  <><Unlock size={20} className="mr-1" /> Deposit &amp; Earn <ArrowUpRight size={20} /></>
                 )}
               </Button>
             )}
           </div>
         </div>
+
       </div>
     </div>
   );

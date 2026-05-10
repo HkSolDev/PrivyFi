@@ -84,7 +84,6 @@ describe("privyfi", () => {
     assert.equal(userProfileAcc.owner.toString(), user.publicKey.toString());
     assert.equal(userRewardAcc.owner.toString(), user.publicKey.toString());
     assert.equal(userProfileAcc.totalStaked.toString(), "0");
-    assert.equal(userProfileAcc.privateMode, false);
     assert.equal(userRewardAcc.totalRewardPoints.toString(), "0");
   });
 

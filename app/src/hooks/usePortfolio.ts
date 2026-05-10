@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { useWallet, useConnection } from '@solana/wallet-adapter-react';
-import { LAMPORTS_PER_SOL } from '@solana/web3.js';
+import { useConnection } from '@solana/wallet-adapter-react';
+import { useWalletSession } from '@solana/react-hooks';
+import { LAMPORTS_PER_SOL, PublicKey, Connection } from '@solana/web3.js';
 import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
 
 const SOL_MINT = 'So11111111111111111111111111111111111111112';
@@ -38,10 +39,11 @@ function setCache<T>(map: Map<string, CacheEntry<T>>, key: string, data: T) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function usePortfolio() {
-  const { publicKey } = useWallet();
-  const { connection } = useConnection();
-  // Stable key — avoids re-firing on every render when connection object ref changes
-  const rpcEndpoint = connection.rpcEndpoint;
+  const session = useWalletSession();
+  const addressString = session?.account.address;
+  const publicKey = addressString ? new PublicKey(addressString) : null;
+  const rpcEndpoint = 'http://127.0.0.1:8899'; // Localnet default, or use cluster state
+  const connection = new Connection(rpcEndpoint, 'confirmed');
 
   const [tokens, setTokens] = useState<PortfolioToken[]>([]);
   const [priceMap, setPriceMap] = useState<Record<string, number>>({});
@@ -52,8 +54,8 @@ export function usePortfolio() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   useEffect(() => {
-    if (!publicKey) { setTokens([]); setPriceMap({}); return; }
-    const address = publicKey.toBase58();
+    if (!publicKey || !addressString) { setTokens([]); setPriceMap({}); return; }
+    const address = addressString;
 
     // ── Phase 1: load token list (fast — RPC only) ─────────────────────────
     const fetchTokens = async () => {

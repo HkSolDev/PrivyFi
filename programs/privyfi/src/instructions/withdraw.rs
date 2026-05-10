@@ -28,7 +28,6 @@ pub struct Withdraw<'info> {
         mut,
         seeds = [b"position", user.key().as_ref(), pool.key().as_ref()],
         bump = user_position.bump,
-        close = user,
     )]
     pub user_position: Account<'info, UserPosition>,
 

@@ -9,7 +9,7 @@ skip-lint = false
 privyfi = "Czmhx4o5349ugHqTjNEArm6eoakk2btihu4bcBCvdt36"
 
 [programs.localnet]
-privyfi = "Czmhx4o5349ugHqTjNEArm6eoakk2btihu4bcBCvdt36"
+privyfi = "FWNEG9fUyFNKs5qMLgGAZohuqhnT1Uex6sDVPKEdCKjA"
 
 [provider]
 cluster = "localnet"

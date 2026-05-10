@@ -25,7 +25,6 @@ pub fn create_user(ctx: Context<InitializeUser>) -> Result<()> {
         user_profile.owner = ctx.accounts.signer.key();
         user_profile.total_staked = 0;
         user_profile.total_reward_earn = 0;
-        user_profile.private_mode = false;
         user_profile.bump = ctx.bumps.user_profile;
     }
 

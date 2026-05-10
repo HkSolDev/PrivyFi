@@ -77,12 +77,12 @@ export default function PortfolioView() {
 
   return (
     <div className="flex flex-col gap-8 fade-in">
-      <div className="grid grid-cols-12 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8">
         {/* Asset Table */}
-        <Card className="col-span-12 lg:col-span-8 bg-[#0d0d12]/40 border-white/5 p-4 purple-glow">
-          <CardHeader className="flex flex-row items-center justify-between pb-8">
-            <CardTitle className="text-2xl font-bold text-white">Your Assets ({allRows.length})</CardTitle>
-            <Badge variant="outline" className="bg-purple-500/10 text-purple-400 border-purple-500/20 py-1.5 px-4 font-bold">
+        <Card className="lg:col-span-8 bg-[#0d0d12]/40 border-white/5 p-4 purple-glow">
+          <CardHeader className="flex flex-row items-center justify-between pb-6 flex-wrap gap-3">
+            <CardTitle className="text-xl md:text-2xl font-bold text-white">Your Assets ({allRows.length})</CardTitle>
+            <Badge variant="outline" className="bg-purple-500/10 text-purple-400 border-purple-500/20 py-1.5 px-4 font-bold text-xs md:text-sm">
               Net Worth: {totalDisplay}
             </Badge>
           </CardHeader>
@@ -92,105 +92,132 @@ export default function PortfolioView() {
                 No assets found in this wallet.
               </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow className="border-white/5 hover:bg-transparent">
-                    <TableHead className="text-xs font-bold text-gray-500 uppercase tracking-widest pb-6">Asset</TableHead>
-                    <TableHead className="text-xs font-bold text-gray-500 uppercase tracking-widest pb-6">Amount</TableHead>
-                    <TableHead className="text-xs font-bold text-gray-500 uppercase tracking-widest pb-6">Price</TableHead>
-                    <TableHead className="text-xs font-bold text-gray-500 uppercase tracking-widest pb-6">Value</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
+              <>
+                {/* ── Mobile card list ── */}
+                <div className="flex flex-col gap-3 md:hidden">
                   {allRows.map((row: any, i: number) => {
                     const isStaked = !!row.isStaked;
                     const token = row as PortfolioToken;
                     const price = isStaked ? 1 : getTokenPrice(token.mint);
                     const value = isStaked ? row.amount : token.amount * price;
                     const hasPrice = isStaked || price > 0;
-
                     const avatarColor = token.isSol
                       ? 'bg-gradient-to-br from-purple-500 to-indigo-600'
-                      : isStaked
-                      ? 'bg-green-500'
-                      : token.hasMetadata
-                      ? 'bg-gradient-to-br from-cyan-600 to-blue-700'
+                      : isStaked ? 'bg-green-500'
+                      : token.hasMetadata ? 'bg-gradient-to-br from-cyan-600 to-blue-700'
                       : 'bg-white/10';
-
                     return (
-                      <TableRow key={i} className={cn(
-                        "border-white/5 group hover:bg-white/[0.02] transition-colors",
-                        isStaked && "bg-green-500/[0.03]"
+                      <div key={i} className={cn(
+                        "flex items-center justify-between p-4 rounded-2xl border border-white/5 bg-white/[0.02]",
+                        isStaked && "bg-green-500/[0.03] border-green-500/10"
                       )}>
-                        <TableCell className="py-5">
-                          <div className="flex items-center gap-4">
-                            <div className={cn(
-                              "w-10 h-10 rounded-xl flex items-center justify-center font-bold text-xs shadow-lg relative text-white flex-shrink-0",
-                              avatarColor
-                            )}>
-                              {(row.symbol || '??').slice(0, 3)}
-                              {isStaked && (
-                                <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full border-2 border-black" />
-                              )}
-                            </div>
-                            <div>
-                              <div className="font-bold flex items-center gap-2 flex-wrap text-white">
-                                {row.name}
-                                {isStaked && (
-                                  <Badge className="bg-green-500/20 text-green-400 border-none text-[10px] py-0 px-2 h-5">
-                                    Staked
-                                  </Badge>
-                                )}
-                                {!isStaked && token.isUnknown && (
-                                  <Badge variant="outline" className="bg-yellow-500/15 text-yellow-400 border-yellow-500/20 text-[10px] py-0 px-2 h-5 flex items-center gap-1">
-                                    <FlaskConical size={9} /> Devnet
-                                  </Badge>
-                                )}
-                              </div>
-                              <p className="text-[10px] text-gray-500 font-mono mt-0.5">
-                                {token.isUnknown && !isStaked
-                                  ? `${token.mint.slice(0, 8)}...${token.mint.slice(-4)}`
-                                  : row.symbol}
-                              </p>
-                            </div>
+                        <div className="flex items-center gap-3">
+                          <div className={cn(
+                            "w-10 h-10 rounded-xl flex items-center justify-center font-bold text-xs shadow-lg relative text-white flex-shrink-0",
+                            avatarColor
+                          )}>
+                            {(row.symbol || '??').slice(0, 3)}
+                            {isStaked && <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full border-2 border-black" />}
                           </div>
-                        </TableCell>
-                        <TableCell className="py-5 font-bold text-white">
-                          {row.amount.toLocaleString(undefined, { maximumFractionDigits: 4 })}
-                        </TableCell>
-                        <TableCell className="py-5 text-gray-400 text-sm">
-                          {pricesLoading && !hasPrice ? (
-                            <Skeleton className="h-4 w-16 rounded" />
-                          ) : hasPrice ? (
-                            fmt(price)
-                          ) : (
-                            <span className="text-gray-600 text-xs">—</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="py-5 font-bold">
-                          {pricesLoading && !hasPrice ? (
-                            <Skeleton className="h-4 w-20 rounded" />
-                          ) : hasPrice ? (
-                            <span className={value > 0 ? 'text-white' : 'text-gray-500'}>
-                              {fmt(value)}
-                            </span>
-                          ) : (
-                            <span className="text-gray-500">
-                              $0.00 <span className="text-[10px] font-normal">(devnet)</span>
-                            </span>
-                          )}
-                        </TableCell>
-                      </TableRow>
+                          <div>
+                            <div className="font-bold text-sm text-white flex items-center gap-1 flex-wrap">
+                              {row.name}
+                              {isStaked && <Badge className="bg-green-500/20 text-green-400 border-none text-[9px] py-0 px-1.5 h-4">Staked</Badge>}
+                            </div>
+                            <p className="text-[10px] text-gray-500 font-mono">
+                              {token.isUnknown && !isStaked ? `${token.mint.slice(0, 6)}...` : row.symbol}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-bold text-sm text-white">
+                            {pricesLoading && !hasPrice ? <Skeleton className="h-4 w-16 rounded ml-auto" /> : hasPrice ? fmt(value) : <span className="text-gray-500 text-xs">$0.00</span>}
+                          </div>
+                          <p className="text-[10px] text-gray-500">
+                            {row.amount.toLocaleString(undefined, { maximumFractionDigits: 4 })} {row.symbol}
+                          </p>
+                        </div>
+                      </div>
                     );
                   })}
-                </TableBody>
-              </Table>
+                </div>
+
+                {/* ── Desktop table ── */}
+                <div className="hidden md:block">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="border-white/5 hover:bg-transparent">
+                        <TableHead className="text-xs font-bold text-gray-500 uppercase tracking-widest pb-6">Asset</TableHead>
+                        <TableHead className="text-xs font-bold text-gray-500 uppercase tracking-widest pb-6">Amount</TableHead>
+                        <TableHead className="text-xs font-bold text-gray-500 uppercase tracking-widest pb-6">Price</TableHead>
+                        <TableHead className="text-xs font-bold text-gray-500 uppercase tracking-widest pb-6">Value</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {allRows.map((row: any, i: number) => {
+                        const isStaked = !!row.isStaked;
+                        const token = row as PortfolioToken;
+                        const price = isStaked ? 1 : getTokenPrice(token.mint);
+                        const value = isStaked ? row.amount : token.amount * price;
+                        const hasPrice = isStaked || price > 0;
+                        const avatarColor = token.isSol
+                          ? 'bg-gradient-to-br from-purple-500 to-indigo-600'
+                          : isStaked ? 'bg-green-500'
+                          : token.hasMetadata ? 'bg-gradient-to-br from-cyan-600 to-blue-700'
+                          : 'bg-white/10';
+                        return (
+                          <TableRow key={i} className={cn(
+                            "border-white/5 group hover:bg-white/[0.02] transition-colors",
+                            isStaked && "bg-green-500/[0.03]"
+                          )}>
+                            <TableCell className="py-5">
+                              <div className="flex items-center gap-4">
+                                <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center font-bold text-xs shadow-lg relative text-white flex-shrink-0", avatarColor)}>
+                                  {(row.symbol || '??').slice(0, 3)}
+                                  {isStaked && <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full border-2 border-black" />}
+                                </div>
+                                <div>
+                                  <div className="font-bold flex items-center gap-2 flex-wrap text-white">
+                                    {row.name}
+                                    {isStaked && <Badge className="bg-green-500/20 text-green-400 border-none text-[10px] py-0 px-2 h-5">Staked</Badge>}
+                                    {!isStaked && token.isUnknown && (
+                                      <Badge variant="outline" className="bg-yellow-500/15 text-yellow-400 border-yellow-500/20 text-[10px] py-0 px-2 h-5 flex items-center gap-1">
+                                        <FlaskConical size={9} /> Devnet
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <p className="text-[10px] text-gray-500 font-mono mt-0.5">
+                                    {token.isUnknown && !isStaked ? `${token.mint.slice(0, 8)}...${token.mint.slice(-4)}` : row.symbol}
+                                  </p>
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell className="py-5 font-bold text-white">
+                              {row.amount.toLocaleString(undefined, { maximumFractionDigits: 4 })}
+                            </TableCell>
+                            <TableCell className="py-5 text-gray-400 text-sm">
+                              {pricesLoading && !hasPrice ? <Skeleton className="h-4 w-16 rounded" /> : hasPrice ? fmt(price) : <span className="text-gray-600 text-xs">—</span>}
+                            </TableCell>
+                            <TableCell className="py-5 font-bold">
+                              {pricesLoading && !hasPrice ? <Skeleton className="h-4 w-20 rounded" /> : hasPrice ? (
+                                <span className={value > 0 ? 'text-white' : 'text-gray-500'}>{fmt(value)}</span>
+                              ) : (
+                                <span className="text-gray-500">$0.00 <span className="text-[10px] font-normal">(devnet)</span></span>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              </>
             )}
           </CardContent>
         </Card>
 
         {/* Sidebar Stats */}
-        <div className="col-span-12 lg:col-span-4 flex flex-col gap-6">
+        <div className="lg:col-span-4 flex flex-col gap-6">
           <Card className="bg-[#0d0d12]/40 border-white/5 p-6 bg-gradient-to-br from-purple-500/10 to-transparent border-purple-500/20">
             <CardHeader className="flex flex-row items-center gap-3 pb-6 px-0 pt-0">
               <PieChart size={20} className="text-purple-400" />
