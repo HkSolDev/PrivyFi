@@ -57,6 +57,7 @@ import {
 } from "../accounts";
 import {
   getClaimPredictionInstructionAsync,
+  getCrankPayoutsInstructionAsync,
   getDepositInstructionAsync,
   getInitializeAccuracyMarketInstructionAsync,
   getInitializeFaucetInstructionAsync,
@@ -70,6 +71,7 @@ import {
   getUpdateYieldsInstructionAsync,
   getWithdrawInstructionAsync,
   parseClaimPredictionInstruction,
+  parseCrankPayoutsInstruction,
   parseDepositInstruction,
   parseInitializeAccuracyMarketInstruction,
   parseInitializeFaucetInstruction,
@@ -83,6 +85,7 @@ import {
   parseUpdateYieldsInstruction,
   parseWithdrawInstruction,
   type ClaimPredictionAsyncInput,
+  type CrankPayoutsAsyncInput,
   type DepositAsyncInput,
   type InitializeAccuracyMarketAsyncInput,
   type InitializeFaucetAsyncInput,
@@ -90,6 +93,7 @@ import {
   type InitializeUserAsyncInput,
   type InitializeYieldStoreAsyncInput,
   type ParsedClaimPredictionInstruction,
+  type ParsedCrankPayoutsInstruction,
   type ParsedDepositInstruction,
   type ParsedInitializeAccuracyMarketInstruction,
   type ParsedInitializeFaucetInstruction,
@@ -224,6 +228,7 @@ export function identifyPrivyfiAccount(
 
 export enum PrivyfiInstruction {
   ClaimPrediction,
+  CrankPayouts,
   Deposit,
   InitializeAccuracyMarket,
   InitializeFaucet,
@@ -252,6 +257,17 @@ export function identifyPrivyfiInstruction(
     )
   ) {
     return PrivyfiInstruction.ClaimPrediction;
+  }
+  if (
+    containsBytes(
+      data,
+      fixEncoderSize(getBytesEncoder(), 8).encode(
+        new Uint8Array([244, 128, 167, 134, 14, 110, 33, 97]),
+      ),
+      0,
+    )
+  ) {
+    return PrivyfiInstruction.CrankPayouts;
   }
   if (
     containsBytes(
@@ -398,6 +414,9 @@ export type ParsedPrivyfiInstruction<
       instructionType: PrivyfiInstruction.ClaimPrediction;
     } & ParsedClaimPredictionInstruction<TProgram>)
   | ({
+      instructionType: PrivyfiInstruction.CrankPayouts;
+    } & ParsedCrankPayoutsInstruction<TProgram>)
+  | ({
       instructionType: PrivyfiInstruction.Deposit;
     } & ParsedDepositInstruction<TProgram>)
   | ({
@@ -444,6 +463,13 @@ export function parsePrivyfiInstruction<TProgram extends string>(
       return {
         instructionType: PrivyfiInstruction.ClaimPrediction,
         ...parseClaimPredictionInstruction(instruction),
+      };
+    }
+    case PrivyfiInstruction.CrankPayouts: {
+      assertIsInstructionWithAccounts(instruction);
+      return {
+        instructionType: PrivyfiInstruction.CrankPayouts,
+        ...parseCrankPayoutsInstruction(instruction),
       };
     }
     case PrivyfiInstruction.Deposit: {
@@ -566,6 +592,10 @@ export type PrivyfiPluginInstructions = {
     input: ClaimPredictionAsyncInput,
   ) => ReturnType<typeof getClaimPredictionInstructionAsync> &
     SelfPlanAndSendFunctions;
+  crankPayouts: (
+    input: CrankPayoutsAsyncInput,
+  ) => ReturnType<typeof getCrankPayoutsInstructionAsync> &
+    SelfPlanAndSendFunctions;
   deposit: (
     input: DepositAsyncInput,
   ) => ReturnType<typeof getDepositInstructionAsync> & SelfPlanAndSendFunctions;
@@ -660,6 +690,11 @@ export function privyfiProgram() {
             addSelfPlanAndSendFunctions(
               client,
               getClaimPredictionInstructionAsync(input),
+            ),
+          crankPayouts: (input) =>
+            addSelfPlanAndSendFunctions(
+              client,
+              getCrankPayoutsInstructionAsync(input),
             ),
           deposit: (input) =>
             addSelfPlanAndSendFunctions(

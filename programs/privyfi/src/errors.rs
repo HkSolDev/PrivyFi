@@ -18,4 +18,20 @@ pub enum PrivyFiError {
     StaleOracle,
     #[msg("The feed ID does not match the expected SOL/USD feed")]
     MismatchedFeedId,
+    #[msg("Invalid predicted bucket")]
+    InvalidBucket,
+    #[msg("The betting window is closed")]
+    BettingWindowClosed,
+    #[msg("The market is already resolved")]
+    MarketAlreadyResolved,
+    #[msg("The market has not been resolved yet")]
+    MarketNotResolved,
+    #[msg("You have already claimed your rewards for this prediction")]
+    AlreadyClaimed,
+    #[msg("You are not a winner in this round")]
+    NotAWinner,
+    #[msg("Your payout is zero")]
+    NoPayout,
+    #[msg("Invalid market for this prediction")]
+    InvalidMarket,
 }

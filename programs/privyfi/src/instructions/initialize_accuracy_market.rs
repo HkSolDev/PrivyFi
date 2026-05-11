@@ -3,12 +3,13 @@ use crate::state::AccuracyMarket;
 use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 
 #[derive(Accounts)]
+#[instruction(round_id: u64)]
 pub struct InitializeAccuracyMarket<'info> {
     #[account(
         init,
         payer = signer,
         space = 8 + AccuracyMarket::INIT_SPACE,
-        seeds = [b"accuracy_market", oracle_feed.key().as_ref()],
+        seeds = [b"accuracy_market", oracle_feed.key().as_ref(), round_id.to_le_bytes().as_ref()],
         bump
     )]
     pub market: Box<Account<'info, AccuracyMarket>>,
@@ -23,8 +24,7 @@ pub struct InitializeAccuracyMarket<'info> {
     )]
     pub vault: InterfaceAccount<'info, TokenAccount>,
 
-    /// The Pyth price feed account (PriceUpdateV2)
-    /// CHECK: This is just used as a seed and reference
+    /// CHECK: Oracle feed pubkey used as seed for PDA derivation. Not deserialized here.
     pub oracle_feed: UncheckedAccount<'info>,
 
     #[account(mut)]
@@ -36,9 +36,11 @@ pub struct InitializeAccuracyMarket<'info> {
 
 pub fn initialize_accuracy_market_handler(
     ctx: Context<InitializeAccuracyMarket>,
+    round_id: u64,
     base_price: u64,
     precision_step: u64,
 ) -> Result<()> {
+    let clock = Clock::get()?;
     let market = &mut ctx.accounts.market;
     market.oracle_feed = ctx.accounts.oracle_feed.key();
     market.vault = ctx.accounts.vault.key();
@@ -48,11 +50,11 @@ pub fn initialize_accuracy_market_handler(
     market.total_participants = 0;
     market.is_resolved = false;
     market.final_price = 0;
+    market.round_id = round_id;
     market.bump = ctx.bumps.market;
-    
-    // Histogram fields
-    market.entry_fee = 10_000_000; // e.g., 10 USDC (assuming 6 decimals)
+    market.entry_fee = 10_000_000;
     market.prediction_histogram = [0; 100];
+    market.betting_deadline = clock.unix_timestamp + 60;
     market.actual_bucket = None;
     market.median_error = None;
     market.total_winning_weight = None;

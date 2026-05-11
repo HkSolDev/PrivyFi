@@ -39,6 +39,7 @@ import {
 import {
   getAccountMetaFactory,
   getAddressFromResolvedInstructionAccount,
+  getNonNullResolvedInstructionInput,
   type ResolvedInstructionAccount,
 } from "@solana/program-client-core";
 import { findMarketPda } from "../pdas";
@@ -102,11 +103,13 @@ export type InitializeAccuracyMarketInstruction<
 
 export type InitializeAccuracyMarketInstructionData = {
   discriminator: ReadonlyUint8Array;
+  roundId: bigint;
   basePrice: bigint;
   precisionStep: bigint;
 };
 
 export type InitializeAccuracyMarketInstructionDataArgs = {
+  roundId: number | bigint;
   basePrice: number | bigint;
   precisionStep: number | bigint;
 };
@@ -115,6 +118,7 @@ export function getInitializeAccuracyMarketInstructionDataEncoder(): FixedSizeEn
   return transformEncoder(
     getStructEncoder([
       ["discriminator", fixEncoderSize(getBytesEncoder(), 8)],
+      ["roundId", getU64Encoder()],
       ["basePrice", getU64Encoder()],
       ["precisionStep", getU64Encoder()],
     ]),
@@ -128,6 +132,7 @@ export function getInitializeAccuracyMarketInstructionDataEncoder(): FixedSizeEn
 export function getInitializeAccuracyMarketInstructionDataDecoder(): FixedSizeDecoder<InitializeAccuracyMarketInstructionData> {
   return getStructDecoder([
     ["discriminator", fixDecoderSize(getBytesDecoder(), 8)],
+    ["roundId", getU64Decoder()],
     ["basePrice", getU64Decoder()],
     ["precisionStep", getU64Decoder()],
   ]);
@@ -156,12 +161,12 @@ export type InitializeAccuracyMarketAsyncInput<
   market?: Address<TAccountMarket>;
   mint: Address<TAccountMint>;
   vault?: Address<TAccountVault>;
-  /** The Pyth price feed account (PriceUpdateV2) */
   oracleFeed: Address<TAccountOracleFeed>;
   signer: TransactionSigner<TAccountSigner>;
   systemProgram?: Address<TAccountSystemProgram>;
   tokenProgram?: Address<TAccountTokenProgram>;
   associatedTokenProgram?: Address<TAccountAssociatedTokenProgram>;
+  roundId: InitializeAccuracyMarketInstructionDataArgs["roundId"];
   basePrice: InitializeAccuracyMarketInstructionDataArgs["basePrice"];
   precisionStep: InitializeAccuracyMarketInstructionDataArgs["precisionStep"];
 };
@@ -233,6 +238,7 @@ export async function getInitializeAccuracyMarketInstructionAsync<
         "oracleFeed",
         accounts.oracleFeed.value,
       ),
+      roundId: getNonNullResolvedInstructionInput("roundId", args.roundId),
     });
   }
   if (!accounts.vault.value) {
@@ -314,12 +320,12 @@ export type InitializeAccuracyMarketInput<
   market: Address<TAccountMarket>;
   mint: Address<TAccountMint>;
   vault: Address<TAccountVault>;
-  /** The Pyth price feed account (PriceUpdateV2) */
   oracleFeed: Address<TAccountOracleFeed>;
   signer: TransactionSigner<TAccountSigner>;
   systemProgram?: Address<TAccountSystemProgram>;
   tokenProgram?: Address<TAccountTokenProgram>;
   associatedTokenProgram?: Address<TAccountAssociatedTokenProgram>;
+  roundId: InitializeAccuracyMarketInstructionDataArgs["roundId"];
   basePrice: InitializeAccuracyMarketInstructionDataArgs["basePrice"];
   precisionStep: InitializeAccuracyMarketInstructionDataArgs["precisionStep"];
 };
@@ -434,7 +440,6 @@ export type ParsedInitializeAccuracyMarketInstruction<
     market: TAccountMetas[0];
     mint: TAccountMetas[1];
     vault: TAccountMetas[2];
-    /** The Pyth price feed account (PriceUpdateV2) */
     oracleFeed: TAccountMetas[3];
     signer: TAccountMetas[4];
     systemProgram: TAccountMetas[5];

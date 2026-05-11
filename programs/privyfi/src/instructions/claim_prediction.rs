@@ -1,16 +1,17 @@
 use anchor_lang::prelude::*;
-use anchor_spl::token_interface::{self, Mint, TokenAccount, TokenInterface, TransferChecked};
+use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface, TransferChecked};
 use crate::state::{AccuracyMarket, UserPrediction};
 use crate::errors::PrivyFiError;
 
 #[derive(Accounts)]
+#[instruction(round_id: u64)]
 pub struct ClaimPrediction<'info> {
     #[account(mut)]
     pub user: Signer<'info>,
 
     #[account(
         mut,
-        seeds = [b"accuracy_market", market.oracle_feed.as_ref()],
+        seeds = [b"accuracy_market", market.oracle_feed.as_ref(), round_id.to_le_bytes().as_ref()],
         bump = market.bump
     )]
     pub market: Box<Account<'info, AccuracyMarket>>,
@@ -44,23 +45,23 @@ pub struct ClaimPrediction<'info> {
     pub system_program: Program<'info, System>,
 }
 
-pub fn claim_prediction_handler(ctx: Context<ClaimPrediction>) -> Result<()> {
+pub fn claim_prediction_handler(ctx: Context<ClaimPrediction>, _round_id: u64) -> Result<()> {
     let market = &mut ctx.accounts.market;
     let user_prediction = &mut ctx.accounts.user_prediction;
 
-    require!(market.is_resolved, PrivyFiError::InvalidAmount); // Need proper error
-    require!(!user_prediction.claimed, PrivyFiError::InvalidAmount);
+    require!(market.is_resolved, PrivyFiError::MarketNotResolved);
+    require!(!user_prediction.claimed, PrivyFiError::AlreadyClaimed);
 
-    let actual_bucket = market.actual_bucket.unwrap();
-    let median_error = market.median_error.unwrap();
-    let total_weight = market.total_winning_weight.unwrap();
+    let actual_bucket = market.actual_bucket.ok_or(PrivyFiError::MarketNotResolved)?;
+    let median_error = market.median_error.ok_or(PrivyFiError::MarketNotResolved)?;
+    let total_weight = market.total_winning_weight.ok_or(PrivyFiError::NoPayout)?;
 
     let my_error = (user_prediction.predicted_bucket as i32 - actual_bucket as i32).abs() as u8;
 
     if median_error > 0 {
-        require!(my_error < median_error, PrivyFiError::InvalidAmount);
+        require!(my_error < median_error, PrivyFiError::NotAWinner);
     } else {
-        require!(my_error == 0, PrivyFiError::InvalidAmount);
+        require!(my_error == 0, PrivyFiError::NotAWinner);
     }
 
     let my_weight = if median_error > 0 {
@@ -69,17 +70,20 @@ pub fn claim_prediction_handler(ctx: Context<ClaimPrediction>) -> Result<()> {
         1
     };
 
-    let payout = my_weight
-        .checked_mul(market.total_pool_amount as u128).unwrap()
-        .checked_div(total_weight).unwrap() as u64;
+    let my_total_weight = my_weight * (user_prediction.amount as u128);
+    let payout = my_total_weight
+        .checked_mul(market.total_pool_amount as u128)
+        .ok_or(PrivyFiError::Overflow)?
+        .checked_div(total_weight)
+        .ok_or(PrivyFiError::Overflow)? as u64;
 
-    require!(payout > 0, PrivyFiError::InvalidAmount);
+    require!(payout > 0, PrivyFiError::NoPayout);
     user_prediction.claimed = true;
 
-    // Transfer Payout via PDA CPI
     let seeds = &[
         b"accuracy_market".as_ref(), 
         market.oracle_feed.as_ref(), 
+        &market.round_id.to_le_bytes(),
         &[market.bump]
     ];
     let signer_seeds = &[&seeds[..]];

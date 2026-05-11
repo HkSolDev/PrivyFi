@@ -14,6 +14,8 @@ import {
   getBytesEncoder,
   getStructDecoder,
   getStructEncoder,
+  getU64Decoder,
+  getU64Encoder,
   SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS,
   SolanaError,
   transformEncoder,
@@ -74,13 +76,17 @@ export type ResolveMarketInstruction<
 
 export type ResolveMarketInstructionData = {
   discriminator: ReadonlyUint8Array;
+  roundId: bigint;
 };
 
-export type ResolveMarketInstructionDataArgs = {};
+export type ResolveMarketInstructionDataArgs = { roundId: number | bigint };
 
 export function getResolveMarketInstructionDataEncoder(): FixedSizeEncoder<ResolveMarketInstructionDataArgs> {
   return transformEncoder(
-    getStructEncoder([["discriminator", fixEncoderSize(getBytesEncoder(), 8)]]),
+    getStructEncoder([
+      ["discriminator", fixEncoderSize(getBytesEncoder(), 8)],
+      ["roundId", getU64Encoder()],
+    ]),
     (value) => ({ ...value, discriminator: RESOLVE_MARKET_DISCRIMINATOR }),
   );
 }
@@ -88,6 +94,7 @@ export function getResolveMarketInstructionDataEncoder(): FixedSizeEncoder<Resol
 export function getResolveMarketInstructionDataDecoder(): FixedSizeDecoder<ResolveMarketInstructionData> {
   return getStructDecoder([
     ["discriminator", fixDecoderSize(getBytesDecoder(), 8)],
+    ["roundId", getU64Decoder()],
   ]);
 }
 
@@ -107,9 +114,9 @@ export type ResolveMarketInput<
   TAccountSigner extends string = string,
 > = {
   market: Address<TAccountMarket>;
-  /** The Pyth PriceUpdateV2 account. */
   priceUpdate: Address<TAccountPriceUpdate>;
   signer: TransactionSigner<TAccountSigner>;
+  roundId: ResolveMarketInstructionDataArgs["roundId"];
 };
 
 export function getResolveMarketInstruction<
@@ -144,6 +151,9 @@ export function getResolveMarketInstruction<
     ResolvedInstructionAccount
   >;
 
+  // Original args.
+  const args = { ...input };
+
   const getAccountMeta = getAccountMetaFactory(programAddress, "programId");
   return Object.freeze({
     accounts: [
@@ -151,7 +161,9 @@ export function getResolveMarketInstruction<
       getAccountMeta("priceUpdate", accounts.priceUpdate),
       getAccountMeta("signer", accounts.signer),
     ],
-    data: getResolveMarketInstructionDataEncoder().encode({}),
+    data: getResolveMarketInstructionDataEncoder().encode(
+      args as ResolveMarketInstructionDataArgs,
+    ),
     programAddress,
   } as ResolveMarketInstruction<
     TProgramAddress,
@@ -168,7 +180,6 @@ export type ParsedResolveMarketInstruction<
   programAddress: Address<TProgram>;
   accounts: {
     market: TAccountMetas[0];
-    /** The Pyth PriceUpdateV2 account. */
     priceUpdate: TAccountMetas[1];
     signer: TAccountMetas[2];
   };

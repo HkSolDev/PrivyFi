@@ -23,6 +23,8 @@ import {
   getBooleanEncoder,
   getBytesDecoder,
   getBytesEncoder,
+  getI64Decoder,
+  getI64Encoder,
   getOptionDecoder,
   getOptionEncoder,
   getStructDecoder,
@@ -71,9 +73,11 @@ export type AccuracyMarket = {
   totalParticipants: number;
   isResolved: boolean;
   finalPrice: bigint;
+  roundId: bigint;
   bump: number;
   entryFee: bigint;
-  predictionHistogram: Array<number>;
+  predictionHistogram: Array<bigint>;
+  bettingDeadline: bigint;
   actualBucket: Option<number>;
   medianError: Option<number>;
   totalWinningWeight: Option<bigint>;
@@ -88,9 +92,11 @@ export type AccuracyMarketArgs = {
   totalParticipants: number;
   isResolved: boolean;
   finalPrice: number | bigint;
+  roundId: number | bigint;
   bump: number;
   entryFee: number | bigint;
-  predictionHistogram: Array<number>;
+  predictionHistogram: Array<number | bigint>;
+  bettingDeadline: number | bigint;
   actualBucket: OptionOrNullable<number>;
   medianError: OptionOrNullable<number>;
   totalWinningWeight: OptionOrNullable<number | bigint>;
@@ -109,9 +115,11 @@ export function getAccuracyMarketEncoder(): Encoder<AccuracyMarketArgs> {
       ["totalParticipants", getU32Encoder()],
       ["isResolved", getBooleanEncoder()],
       ["finalPrice", getU64Encoder()],
+      ["roundId", getU64Encoder()],
       ["bump", getU8Encoder()],
       ["entryFee", getU64Encoder()],
-      ["predictionHistogram", getArrayEncoder(getU32Encoder(), { size: 100 })],
+      ["predictionHistogram", getArrayEncoder(getU64Encoder(), { size: 100 })],
+      ["bettingDeadline", getI64Encoder()],
       ["actualBucket", getOptionEncoder(getU8Encoder())],
       ["medianError", getOptionEncoder(getU8Encoder())],
       ["totalWinningWeight", getOptionEncoder(getU128Encoder())],
@@ -132,9 +140,11 @@ export function getAccuracyMarketDecoder(): Decoder<AccuracyMarket> {
     ["totalParticipants", getU32Decoder()],
     ["isResolved", getBooleanDecoder()],
     ["finalPrice", getU64Decoder()],
+    ["roundId", getU64Decoder()],
     ["bump", getU8Decoder()],
     ["entryFee", getU64Decoder()],
-    ["predictionHistogram", getArrayDecoder(getU32Decoder(), { size: 100 })],
+    ["predictionHistogram", getArrayDecoder(getU64Decoder(), { size: 100 })],
+    ["bettingDeadline", getI64Decoder()],
     ["actualBucket", getOptionDecoder(getU8Decoder())],
     ["medianError", getOptionDecoder(getU8Decoder())],
     ["totalWinningWeight", getOptionDecoder(getU128Decoder())],

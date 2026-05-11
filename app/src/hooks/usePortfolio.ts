@@ -42,7 +42,7 @@ export function usePortfolio() {
   const session = useWalletSession();
   const addressString = session?.account.address;
   const publicKey = addressString ? new PublicKey(addressString) : null;
-  const rpcEndpoint = 'http://127.0.0.1:8899'; // Localnet default, or use cluster state
+  const rpcEndpoint = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com';
   const connection = new Connection(rpcEndpoint, 'confirmed');
 
   const [tokens, setTokens] = useState<PortfolioToken[]>([]);

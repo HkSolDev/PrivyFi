@@ -30,13 +30,37 @@ export const PRIVYFI_ERROR__INVALID_ORACLE_DATA = 0x1775; // 6005
 export const PRIVYFI_ERROR__STALE_ORACLE = 0x1776; // 6006
 /** MismatchedFeedId: The feed ID does not match the expected SOL/USD feed */
 export const PRIVYFI_ERROR__MISMATCHED_FEED_ID = 0x1777; // 6007
+/** InvalidBucket: Invalid predicted bucket */
+export const PRIVYFI_ERROR__INVALID_BUCKET = 0x1778; // 6008
+/** BettingWindowClosed: The betting window is closed */
+export const PRIVYFI_ERROR__BETTING_WINDOW_CLOSED = 0x1779; // 6009
+/** MarketAlreadyResolved: The market is already resolved */
+export const PRIVYFI_ERROR__MARKET_ALREADY_RESOLVED = 0x177a; // 6010
+/** MarketNotResolved: The market has not been resolved yet */
+export const PRIVYFI_ERROR__MARKET_NOT_RESOLVED = 0x177b; // 6011
+/** AlreadyClaimed: You have already claimed your rewards for this prediction */
+export const PRIVYFI_ERROR__ALREADY_CLAIMED = 0x177c; // 6012
+/** NotAWinner: You are not a winner in this round */
+export const PRIVYFI_ERROR__NOT_A_WINNER = 0x177d; // 6013
+/** NoPayout: Your payout is zero */
+export const PRIVYFI_ERROR__NO_PAYOUT = 0x177e; // 6014
+/** InvalidMarket: Invalid market for this prediction */
+export const PRIVYFI_ERROR__INVALID_MARKET = 0x177f; // 6015
 
 export type PrivyfiError =
+  | typeof PRIVYFI_ERROR__ALREADY_CLAIMED
+  | typeof PRIVYFI_ERROR__BETTING_WINDOW_CLOSED
   | typeof PRIVYFI_ERROR__INSUFFICIENT_BALANCE
   | typeof PRIVYFI_ERROR__INVALID_AMOUNT
+  | typeof PRIVYFI_ERROR__INVALID_BUCKET
+  | typeof PRIVYFI_ERROR__INVALID_MARKET
   | typeof PRIVYFI_ERROR__INVALID_ORACLE_DATA
   | typeof PRIVYFI_ERROR__INVALID_ORACLE_OWNER
+  | typeof PRIVYFI_ERROR__MARKET_ALREADY_RESOLVED
+  | typeof PRIVYFI_ERROR__MARKET_NOT_RESOLVED
   | typeof PRIVYFI_ERROR__MISMATCHED_FEED_ID
+  | typeof PRIVYFI_ERROR__NO_PAYOUT
+  | typeof PRIVYFI_ERROR__NOT_A_WINNER
   | typeof PRIVYFI_ERROR__OVERFLOW
   | typeof PRIVYFI_ERROR__STALE_ORACLE
   | typeof PRIVYFI_ERROR__UNAUTHORIZED;
@@ -44,11 +68,19 @@ export type PrivyfiError =
 let privyfiErrorMessages: Record<PrivyfiError, string> | undefined;
 if (process.env["NODE_ENV"] !== "production") {
   privyfiErrorMessages = {
+    [PRIVYFI_ERROR__ALREADY_CLAIMED]: `You have already claimed your rewards for this prediction`,
+    [PRIVYFI_ERROR__BETTING_WINDOW_CLOSED]: `The betting window is closed`,
     [PRIVYFI_ERROR__INSUFFICIENT_BALANCE]: `Insufficient balance`,
     [PRIVYFI_ERROR__INVALID_AMOUNT]: `Amount must be greater than 0`,
+    [PRIVYFI_ERROR__INVALID_BUCKET]: `Invalid predicted bucket`,
+    [PRIVYFI_ERROR__INVALID_MARKET]: `Invalid market for this prediction`,
     [PRIVYFI_ERROR__INVALID_ORACLE_DATA]: `The oracle account data is invalid or too short`,
     [PRIVYFI_ERROR__INVALID_ORACLE_OWNER]: `The oracle account is not owned by the Pyth Receiver program`,
+    [PRIVYFI_ERROR__MARKET_ALREADY_RESOLVED]: `The market is already resolved`,
+    [PRIVYFI_ERROR__MARKET_NOT_RESOLVED]: `The market has not been resolved yet`,
     [PRIVYFI_ERROR__MISMATCHED_FEED_ID]: `The feed ID does not match the expected SOL/USD feed`,
+    [PRIVYFI_ERROR__NO_PAYOUT]: `Your payout is zero`,
+    [PRIVYFI_ERROR__NOT_A_WINNER]: `You are not a winner in this round`,
     [PRIVYFI_ERROR__OVERFLOW]: `Arithmetic overflow — amount too large`,
     [PRIVYFI_ERROR__STALE_ORACLE]: `The oracle price feed is stale`,
     [PRIVYFI_ERROR__UNAUTHORIZED]: `You are not authorized to update yields`,

@@ -23,7 +23,7 @@ export function ConnectButton({ className }: { className?: string }) {
 
   return (
     <Button 
-      onClick={() => connect('wallet-standard:phantom')} 
+      onClick={() => connect('wallet-standard:solflare')} 
       className={className}
     >
       Connect Wallet

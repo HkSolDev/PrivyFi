@@ -479,9 +479,9 @@ export default function YieldDetailsModal({ strategy, isOpen, onClose }: YieldDe
             </div>
           </div>
         </div>
-        <div className="p-5 md:p-8 border-t border-white/5 bg-white/5 flex flex-col gap-3">
-          <p className="text-xs text-gray-500 text-center md:text-left">
-            Ready to start? Solflare/dFlow will route your swap, and the deposit will be processed through our secure vault.
+        <div className="p-5 md:p-8 border-t border-border/30 bg-card/30 flex flex-col gap-3">
+          <p className="text-xs text-muted-foreground text-center md:text-left">
+            This is a simulated yield strategy. To invest with real assets, visit the protocol directly.
           </p>
           <div className="flex flex-col sm:flex-row gap-3 w-full">
             <a
@@ -493,68 +493,17 @@ export default function YieldDetailsModal({ strategy, isOpen, onClose }: YieldDe
               }
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-white/5 border border-white/10 text-gray-400 hover:text-white transition-all text-sm font-bold shadow-xl whitespace-nowrap"
+              className="flex-1 flex items-center justify-center gap-2 px-5 py-4 rounded-2xl bg-white text-black font-black hover:bg-gray-100 transition-all text-sm shadow-xl"
             >
-              View on {strategy.protocol} <ExternalLink size={14} />
+              Open {strategy.protocol} <ExternalLink size={16} />
             </a>
-            {currentStake > 0 && (
-              <Button
-                variant="outline"
-                onClick={handleWithdraw}
-                disabled={isWithdrawing}
-                className="flex-1 px-5 py-5 rounded-2xl font-bold border-white/10 hover:bg-white/5 transition-all flex items-center justify-center gap-2"
-              >
-                {isWithdrawing ? <Loader2 className="animate-spin" size={16} /> : 'Withdraw'}
-              </Button>
-            )}
-            {tokenBalance === 0 && !isBalanceLoading ? (
-              (tokenInfo.symbol === 'PUSD' || tokenInfo.symbol === 'AUDD') ? (
-                <Button
-                  onClick={handleFaucet}
-                  disabled={isFauceting}
-                  className="flex-1 px-8 py-5 rounded-2xl bg-yellow-500 text-black font-black hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-2 h-auto"
-                >
-                  {isFauceting ? <Loader2 className="animate-spin" size={20} /> : <Zap size={20} />}
-                  Get Devnet {tokenInfo.symbol}
-                </Button>
-              ) : (
-                <a
-                  href={tokenInfo.faucet}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex-1 px-8 py-3 rounded-2xl bg-yellow-500 text-black font-black hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-2"
-                >
-                  Get Devnet {tokenInfo.symbol}
-                </a>
-              )
-            ) : (!recommendation || isBalanceLoading) ? (
-              <Button
-                disabled={true}
-                variant="secondary"
-                className="flex-1 px-8 py-5 rounded-2xl font-black bg-white/10 text-gray-500 cursor-not-allowed flex items-center justify-center gap-2 h-auto"
-              >
-                {isBalanceLoading ? <Loader2 className="animate-spin" size={20} /> : <Lock size={20} />}
-                {isBalanceLoading ? 'Syncing...' : 'Locked'}
-              </Button>
-            ) : (
-              <Button
-                onClick={handleStartEarning}
-                disabled={isDepositing || success}
-                className={`flex-1 px-8 py-5 rounded-2xl font-black transition-all flex items-center justify-center gap-2 shadow-2xl h-auto ${
-                  success
-                    ? 'bg-green-500 text-white hover:bg-green-600'
-                    : 'bg-white text-black hover:bg-gray-100 hover:scale-105 active:scale-95'
-                }`}
-              >
-                {isDepositing ? (
-                  <><Loader2 className="animate-spin" size={20} /> Processing...</>
-                ) : success ? (
-                  <><CheckCircle2 size={20} /> Deposited!</>
-                ) : (
-                  <><Unlock size={20} className="mr-1" /> Deposit &amp; Earn <ArrowUpRight size={20} /></>
-                )}
-              </Button>
-            )}
+            <Button
+              variant="outline"
+              onClick={onClose}
+              className="px-5 py-4 rounded-2xl font-bold border-border/30"
+            >
+              Close
+            </Button>
           </div>
         </div>
 

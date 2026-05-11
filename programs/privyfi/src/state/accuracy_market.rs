@@ -11,10 +11,11 @@ pub struct AccuracyMarket {
     pub total_participants: u32,
     pub is_resolved: bool,
     pub final_price: u64,
+    pub round_id: u64,
     pub bump: u8,
-    // Histogram Approach Fields
     pub entry_fee: u64,
-    pub prediction_histogram: [u32; 100],
+    pub prediction_histogram: [u64; 100],
+    pub betting_deadline: i64,
     pub actual_bucket: Option<u8>,
     pub median_error: Option<u8>,
     pub total_winning_weight: Option<u128>,

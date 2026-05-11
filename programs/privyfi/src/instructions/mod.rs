@@ -10,6 +10,7 @@ pub mod initialize_accuracy_market;
 pub mod place_prediction;
 pub mod resolve_market;
 pub mod claim_prediction;
+pub mod crank_payouts;
 
 pub use deposit::*;
 pub use initialize_pool::*;
@@ -23,3 +24,4 @@ pub use initialize_accuracy_market::*;
 pub use place_prediction::*;
 pub use resolve_market::*;
 pub use claim_prediction::*;
+pub use crank_payouts::*;

@@ -10,12 +10,14 @@ import {
   getAddressEncoder,
   getBytesEncoder,
   getProgramDerivedAddress,
+  getU64Encoder,
   type Address,
   type ProgramDerivedAddress,
 } from "@solana/kit";
 
 export type MarketSeeds = {
   oracleFeed: Address;
+  roundId: number | bigint;
 };
 
 export async function findMarketPda(
@@ -34,6 +36,7 @@ export async function findMarketPda(
         ]),
       ),
       getAddressEncoder().encode(seeds.oracleFeed),
+      getU64Encoder().encode(seeds.roundId),
     ],
   });
 }

@@ -7,6 +7,7 @@
  */
 
 export * from "./claimPrediction";
+export * from "./crankPayouts";
 export * from "./deposit";
 export * from "./initializeAccuracyMarket";
 export * from "./initializeFaucet";

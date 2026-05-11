@@ -130,7 +130,7 @@ export default function DashboardView() {
               onClick={() => { setSelectedStrategy(suggestion); setIsModalOpen(true); }}
               className="bg-white text-purple-900 font-black hover:bg-white/90 px-8 h-12 rounded-xl shadow-2xl shadow-purple-900/50"
             >
-              Analyze & Deposit
+              View Strategy
             </Button>
           </CardContent>
         </Card>
@@ -192,7 +192,7 @@ export default function DashboardView() {
                     onClick={() => { setSelectedStrategy(strat); setIsModalOpen(true); }}
                     className="px-6 py-3 bg-white text-black font-bold rounded-xl hover:scale-105 active:scale-95 transition-all text-sm shadow-xl"
                   >
-                    Deposit
+                    View Details
                   </Button>
                 </div>
               </div>

@@ -37,26 +37,35 @@ pub mod privyfi {
 
     pub fn initialize_accuracy_market(
         ctx: Context<InitializeAccuracyMarket>,
+        round_id: u64,
         base_price: u64,
         precision_step: u64,
     ) -> Result<()> {
-        initialize_accuracy_market_handler(ctx, base_price, precision_step)
+        initialize_accuracy_market_handler(ctx, round_id, base_price, precision_step)
     }
 
     pub fn place_prediction(
         ctx: Context<PlacePrediction>,
+        round_id: u64,
         predicted_bucket: u8,
         amount: u64,
     ) -> Result<()> {
-        place_prediction_handler(ctx, predicted_bucket, amount)
+        place_prediction_handler(ctx, round_id, predicted_bucket, amount)
     }
 
-    pub fn resolve_market(ctx: Context<ResolveMarket>) -> Result<()> {
-        resolve_market_handler(ctx)
+    pub fn resolve_market(ctx: Context<ResolveMarket>, round_id: u64) -> Result<()> {
+        resolve_market_handler(ctx, round_id)
     }
 
-    pub fn claim_prediction(ctx: Context<ClaimPrediction>) -> Result<()> {
-        claim_prediction_handler(ctx)
+    pub fn claim_prediction(ctx: Context<ClaimPrediction>, round_id: u64) -> Result<()> {
+        claim_prediction_handler(ctx, round_id)
+    }
+
+    pub fn crank_payouts<'info>(
+        ctx: Context<'info, CrankPayouts<'info>>,
+        round_id: u64,
+    ) -> Result<()> {
+        crank_payouts_handler(ctx, round_id)
     }
 
     pub fn initialize_faucet(ctx: Context<InitializeFaucet>) -> Result<()> {

@@ -2,10 +2,8 @@ use anchor_lang::prelude::*;
 use crate::state::AccuracyMarket;
 use crate::errors::PrivyFiError;
 
-/// The official Pyth Solana Receiver program ID.
 pub const PYTH_RECEIVER_PROGRAM_ID: Pubkey = pubkey!("rec5EKMGg6MxZYaMdyBfgwp4d5rB9T1VQH5pJv5LtFJ");
 
-/// The SOL/USD Feed ID.
 pub const SOL_USD_FEED_ID: [u8; 32] = [
     0xef, 0x0d, 0x8b, 0x6f, 0xda, 0x2c, 0xeb, 0xa4,
     0x1d, 0xa1, 0x5d, 0x40, 0x95, 0xd1, 0xda, 0x39,
@@ -21,23 +19,24 @@ const OFFSET_EXPONENT:     usize = 90;
 const OFFSET_PUBLISH_TIME: usize = 94;
 
 #[derive(Accounts)]
+#[instruction(round_id: u64)]
 pub struct ResolveMarket<'info> {
     #[account(
         mut,
-        seeds = [b"accuracy_market", market.oracle_feed.as_ref()],
-        bump = market.bump
+        seeds = [b"accuracy_market", market.oracle_feed.as_ref(), round_id.to_le_bytes().as_ref()],
+        bump = market.bump,
+        constraint = !market.is_resolved @ PrivyFiError::MarketAlreadyResolved
     )]
     pub market: Box<Account<'info, AccuracyMarket>>,
 
-    /// The Pyth PriceUpdateV2 account.
-    /// CHECK: Manually verified below.
+    /// CHECK: Manually verified for Pyth owner and data layout in handler.
     pub price_update: UncheckedAccount<'info>,
 
     #[account(mut)]
     pub signer: Signer<'info>,
 }
 
-pub fn resolve_market_handler(ctx: Context<ResolveMarket>) -> Result<()> {
+pub fn resolve_market_handler(ctx: Context<ResolveMarket>, _round_id: u64) -> Result<()> {
     // 1. Verify Owner
     require_keys_eq!(
         *ctx.accounts.price_update.owner,
@@ -75,9 +74,7 @@ pub fn resolve_market_handler(ctx: Context<ResolveMarket>) -> Result<()> {
 
     drop(data);
 
-    // 6. Normalize Price (Scale to 2 decimals like octa-dex, or 6 decimals for USDC precision)
-    // For now, let's just store the absolute value as u64 and handle decimals in frontend.
-    // Or scale it to a standard (e.g., 9 decimals).
+    // 6. Normalize Price to 2-decimal format (like USDC cents)
     let scale = 10_u64.pow((exponent.unsigned_abs()).saturating_sub(2));
     let oracle_price = if scale > 0 {
         (raw_price.unsigned_abs()) / scale
@@ -86,38 +83,39 @@ pub fn resolve_market_handler(ctx: Context<ResolveMarket>) -> Result<()> {
     };
 
     let market = &mut ctx.accounts.market;
-    
-    // Map oracle price to bucket (0-99). 
-    // This is simplified: actual implementation should determine the actual bucket based on base_price and precision_step.
-    // For this example, let's pretend bucket mapping is done like: actual_bucket = (oracle_price - base_price) / precision_step
-    // And clamp it to 0-99.
-    let mut actual_bucket_calc = 0;
-    if oracle_price > market.base_price {
-        let diff = oracle_price - market.base_price;
-        actual_bucket_calc = (diff / market.precision_step) as u8;
-    }
-    let actual_bucket = std::cmp::min(actual_bucket_calc, 99);
+
+    // Map oracle price to bucket (0-99) based on base_price and precision_step
+    let actual_bucket_calc: u64 = if oracle_price >= market.base_price {
+        (oracle_price - market.base_price) / market.precision_step
+    } else {
+        0
+    };
+    let actual_bucket = std::cmp::min(actual_bucket_calc, 99) as u8;
 
     market.actual_bucket = Some(actual_bucket);
     market.final_price = oracle_price;
 
-    // STEP 1: Build the Error Histogram
-    let mut error_hist = [0u32; 100];
+    // STEP 1: Build the Error Histogram (weighted by dollar amounts)
+    let mut error_hist = [0u64; 100];
     for i in 0..100 {
         let count = market.prediction_histogram[i];
         if count > 0 {
             let error = (i as i32 - actual_bucket as i32).abs() as usize;
-            error_hist[error] += count;
+            error_hist[error] = error_hist[error]
+                .checked_add(count)
+                .ok_or(PrivyFiError::Overflow)?;
         }
     }
 
-    // STEP 2: Find the Median Error Cutoff
-    let target_median_count = market.total_participants / 2; // total_participants is total_bets here
-    let mut cumulative_count = 0;
+    // STEP 2: Find the Median Error Cutoff using dollar amounts
+    let target_median_count = market.total_pool_amount / 2;
+    let mut cumulative_count = 0u64;
     let mut median_error = 0;
 
     for e in 0..100 {
-        cumulative_count += error_hist[e];
+        cumulative_count = cumulative_count
+            .checked_add(error_hist[e])
+            .ok_or(PrivyFiError::Overflow)?;
         if cumulative_count > target_median_count {
             median_error = e as u8;
             break;
@@ -127,29 +125,30 @@ pub fn resolve_market_handler(ctx: Context<ResolveMarket>) -> Result<()> {
 
     // STEP 3: Calculate the Total Convex Weight of all Winners
     let mut total_weight: u128 = 0;
-    
+
     for i in 0..100 {
         let count = market.prediction_histogram[i];
         if count > 0 {
             let error = (i as i32 - actual_bucket as i32).abs() as u8;
-            
-            // Winners are those with an error strictly less than the median
+
             if error < median_error {
-                // Convex Math: (Median - Error)^2
                 let weight_per_bet = ((median_error - error) as u128).pow(2);
-                total_weight += weight_per_bet * (count as u128);
-            } 
-            // Failsafe
-            else if median_error == 0 && error == 0 {
-                total_weight += 1 * (count as u128);
+                total_weight = total_weight
+                    .checked_add(weight_per_bet * (count as u128))
+                    .ok_or(PrivyFiError::Overflow)?;
+            } else if median_error == 0 && error == 0 {
+                total_weight = total_weight
+                    .checked_add(1 * (count as u128))
+                    .ok_or(PrivyFiError::Overflow)?;
             }
         }
     }
-    
+
     market.total_winning_weight = Some(total_weight);
     market.is_resolved = true;
 
-    msg!("Market Resolved! Actual Bucket: {}", actual_bucket);
+    msg!("Market Resolved! Round: {}, Bucket: {}, Price: {}, Median Error: {}",
+        market.round_id, actual_bucket, oracle_price, median_error);
 
     Ok(())
 }

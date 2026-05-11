@@ -41,26 +41,25 @@ import {
   getAddressFromResolvedInstructionAccount,
   type ResolvedInstructionAccount,
 } from "@solana/program-client-core";
-import { findUserPredictionPda } from "../pdas";
 import { PRIVYFI_PROGRAM_ADDRESS } from "../programs";
 
-export const CLAIM_PREDICTION_DISCRIMINATOR: ReadonlyUint8Array =
-  new Uint8Array([142, 100, 159, 123, 31, 183, 0, 113]);
+export const CRANK_PAYOUTS_DISCRIMINATOR: ReadonlyUint8Array = new Uint8Array([
+  244, 128, 167, 134, 14, 110, 33, 97,
+]);
 
-export function getClaimPredictionDiscriminatorBytes(): ReadonlyUint8Array {
+export function getCrankPayoutsDiscriminatorBytes(): ReadonlyUint8Array {
   return fixEncoderSize(getBytesEncoder(), 8).encode(
-    CLAIM_PREDICTION_DISCRIMINATOR,
+    CRANK_PAYOUTS_DISCRIMINATOR,
   );
 }
 
-export type ClaimPredictionInstruction<
+export type CrankPayoutsInstruction<
   TProgram extends string = typeof PRIVYFI_PROGRAM_ADDRESS,
-  TAccountUser extends string | AccountMeta<string> = string,
+  TAccountCranker extends string | AccountMeta<string> = string,
   TAccountMarket extends string | AccountMeta<string> = string,
-  TAccountUserPrediction extends string | AccountMeta<string> = string,
-  TAccountMint extends string | AccountMeta<string> = string,
   TAccountMarketVault extends string | AccountMeta<string> = string,
-  TAccountUserToken extends string | AccountMeta<string> = string,
+  TAccountCrankerVault extends string | AccountMeta<string> = string,
+  TAccountMint extends string | AccountMeta<string> = string,
   TAccountTokenProgram extends string | AccountMeta<string> =
     "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
   TAccountAssociatedTokenProgram extends string | AccountMeta<string> =
@@ -72,24 +71,22 @@ export type ClaimPredictionInstruction<
   InstructionWithData<ReadonlyUint8Array> &
   InstructionWithAccounts<
     [
-      TAccountUser extends string
-        ? WritableSignerAccount<TAccountUser> & AccountSignerMeta<TAccountUser>
-        : TAccountUser,
+      TAccountCranker extends string
+        ? WritableSignerAccount<TAccountCranker> &
+            AccountSignerMeta<TAccountCranker>
+        : TAccountCranker,
       TAccountMarket extends string
         ? WritableAccount<TAccountMarket>
         : TAccountMarket,
-      TAccountUserPrediction extends string
-        ? WritableAccount<TAccountUserPrediction>
-        : TAccountUserPrediction,
-      TAccountMint extends string
-        ? ReadonlyAccount<TAccountMint>
-        : TAccountMint,
       TAccountMarketVault extends string
         ? WritableAccount<TAccountMarketVault>
         : TAccountMarketVault,
-      TAccountUserToken extends string
-        ? WritableAccount<TAccountUserToken>
-        : TAccountUserToken,
+      TAccountCrankerVault extends string
+        ? WritableAccount<TAccountCrankerVault>
+        : TAccountCrankerVault,
+      TAccountMint extends string
+        ? ReadonlyAccount<TAccountMint>
+        : TAccountMint,
       TAccountTokenProgram extends string
         ? ReadonlyAccount<TAccountTokenProgram>
         : TAccountTokenProgram,
@@ -103,96 +100,91 @@ export type ClaimPredictionInstruction<
     ]
   >;
 
-export type ClaimPredictionInstructionData = {
+export type CrankPayoutsInstructionData = {
   discriminator: ReadonlyUint8Array;
   roundId: bigint;
 };
 
-export type ClaimPredictionInstructionDataArgs = { roundId: number | bigint };
+export type CrankPayoutsInstructionDataArgs = { roundId: number | bigint };
 
-export function getClaimPredictionInstructionDataEncoder(): FixedSizeEncoder<ClaimPredictionInstructionDataArgs> {
+export function getCrankPayoutsInstructionDataEncoder(): FixedSizeEncoder<CrankPayoutsInstructionDataArgs> {
   return transformEncoder(
     getStructEncoder([
       ["discriminator", fixEncoderSize(getBytesEncoder(), 8)],
       ["roundId", getU64Encoder()],
     ]),
-    (value) => ({ ...value, discriminator: CLAIM_PREDICTION_DISCRIMINATOR }),
+    (value) => ({ ...value, discriminator: CRANK_PAYOUTS_DISCRIMINATOR }),
   );
 }
 
-export function getClaimPredictionInstructionDataDecoder(): FixedSizeDecoder<ClaimPredictionInstructionData> {
+export function getCrankPayoutsInstructionDataDecoder(): FixedSizeDecoder<CrankPayoutsInstructionData> {
   return getStructDecoder([
     ["discriminator", fixDecoderSize(getBytesDecoder(), 8)],
     ["roundId", getU64Decoder()],
   ]);
 }
 
-export function getClaimPredictionInstructionDataCodec(): FixedSizeCodec<
-  ClaimPredictionInstructionDataArgs,
-  ClaimPredictionInstructionData
+export function getCrankPayoutsInstructionDataCodec(): FixedSizeCodec<
+  CrankPayoutsInstructionDataArgs,
+  CrankPayoutsInstructionData
 > {
   return combineCodec(
-    getClaimPredictionInstructionDataEncoder(),
-    getClaimPredictionInstructionDataDecoder(),
+    getCrankPayoutsInstructionDataEncoder(),
+    getCrankPayoutsInstructionDataDecoder(),
   );
 }
 
-export type ClaimPredictionAsyncInput<
-  TAccountUser extends string = string,
+export type CrankPayoutsAsyncInput<
+  TAccountCranker extends string = string,
   TAccountMarket extends string = string,
-  TAccountUserPrediction extends string = string,
-  TAccountMint extends string = string,
   TAccountMarketVault extends string = string,
-  TAccountUserToken extends string = string,
+  TAccountCrankerVault extends string = string,
+  TAccountMint extends string = string,
   TAccountTokenProgram extends string = string,
   TAccountAssociatedTokenProgram extends string = string,
   TAccountSystemProgram extends string = string,
 > = {
-  user: TransactionSigner<TAccountUser>;
+  cranker: TransactionSigner<TAccountCranker>;
   market: Address<TAccountMarket>;
-  userPrediction?: Address<TAccountUserPrediction>;
-  mint: Address<TAccountMint>;
   marketVault?: Address<TAccountMarketVault>;
-  userToken?: Address<TAccountUserToken>;
+  crankerVault?: Address<TAccountCrankerVault>;
+  mint: Address<TAccountMint>;
   tokenProgram?: Address<TAccountTokenProgram>;
   associatedTokenProgram?: Address<TAccountAssociatedTokenProgram>;
   systemProgram?: Address<TAccountSystemProgram>;
-  roundId: ClaimPredictionInstructionDataArgs["roundId"];
+  roundId: CrankPayoutsInstructionDataArgs["roundId"];
 };
 
-export async function getClaimPredictionInstructionAsync<
-  TAccountUser extends string,
+export async function getCrankPayoutsInstructionAsync<
+  TAccountCranker extends string,
   TAccountMarket extends string,
-  TAccountUserPrediction extends string,
-  TAccountMint extends string,
   TAccountMarketVault extends string,
-  TAccountUserToken extends string,
+  TAccountCrankerVault extends string,
+  TAccountMint extends string,
   TAccountTokenProgram extends string,
   TAccountAssociatedTokenProgram extends string,
   TAccountSystemProgram extends string,
   TProgramAddress extends Address = typeof PRIVYFI_PROGRAM_ADDRESS,
 >(
-  input: ClaimPredictionAsyncInput<
-    TAccountUser,
+  input: CrankPayoutsAsyncInput<
+    TAccountCranker,
     TAccountMarket,
-    TAccountUserPrediction,
-    TAccountMint,
     TAccountMarketVault,
-    TAccountUserToken,
+    TAccountCrankerVault,
+    TAccountMint,
     TAccountTokenProgram,
     TAccountAssociatedTokenProgram,
     TAccountSystemProgram
   >,
   config?: { programAddress?: TProgramAddress },
 ): Promise<
-  ClaimPredictionInstruction<
+  CrankPayoutsInstruction<
     TProgramAddress,
-    TAccountUser,
+    TAccountCranker,
     TAccountMarket,
-    TAccountUserPrediction,
-    TAccountMint,
     TAccountMarketVault,
-    TAccountUserToken,
+    TAccountCrankerVault,
+    TAccountMint,
     TAccountTokenProgram,
     TAccountAssociatedTokenProgram,
     TAccountSystemProgram
@@ -203,12 +195,11 @@ export async function getClaimPredictionInstructionAsync<
 
   // Original accounts.
   const originalAccounts = {
-    user: { value: input.user ?? null, isWritable: true },
+    cranker: { value: input.cranker ?? null, isWritable: true },
     market: { value: input.market ?? null, isWritable: true },
-    userPrediction: { value: input.userPrediction ?? null, isWritable: true },
-    mint: { value: input.mint ?? null, isWritable: false },
     marketVault: { value: input.marketVault ?? null, isWritable: true },
-    userToken: { value: input.userToken ?? null, isWritable: true },
+    crankerVault: { value: input.crankerVault ?? null, isWritable: true },
+    mint: { value: input.mint ?? null, isWritable: false },
     tokenProgram: { value: input.tokenProgram ?? null, isWritable: false },
     associatedTokenProgram: {
       value: input.associatedTokenProgram ?? null,
@@ -225,18 +216,6 @@ export async function getClaimPredictionInstructionAsync<
   const args = { ...input };
 
   // Resolve default values.
-  if (!accounts.userPrediction.value) {
-    accounts.userPrediction.value = await findUserPredictionPda({
-      user: getAddressFromResolvedInstructionAccount(
-        "user",
-        accounts.user.value,
-      ),
-      market: getAddressFromResolvedInstructionAccount(
-        "market",
-        accounts.market.value,
-      ),
-    });
-  }
   if (!accounts.marketVault.value) {
     accounts.marketVault.value = await getProgramDerivedAddress({
       programAddress:
@@ -261,30 +240,32 @@ export async function getClaimPredictionInstructionAsync<
       ],
     });
   }
-  if (!accounts.userToken.value) {
-    accounts.userToken.value = await getProgramDerivedAddress({
+  if (!accounts.tokenProgram.value) {
+    accounts.tokenProgram.value =
+      "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" as Address<"TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA">;
+  }
+  if (!accounts.crankerVault.value) {
+    accounts.crankerVault.value = await getProgramDerivedAddress({
       programAddress:
         "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL" as Address<"ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL">,
       seeds: [
         getAddressEncoder().encode(
-          getAddressFromResolvedInstructionAccount("user", accounts.user.value),
+          getAddressFromResolvedInstructionAccount(
+            "cranker",
+            accounts.cranker.value,
+          ),
         ),
-        getBytesEncoder().encode(
-          new Uint8Array([
-            6, 221, 246, 225, 215, 101, 161, 147, 217, 203, 225, 70, 206, 235,
-            121, 172, 28, 180, 133, 237, 95, 91, 55, 145, 58, 140, 245, 133,
-            126, 255, 0, 169,
-          ]),
+        getAddressEncoder().encode(
+          getAddressFromResolvedInstructionAccount(
+            "tokenProgram",
+            accounts.tokenProgram.value,
+          ),
         ),
         getAddressEncoder().encode(
           getAddressFromResolvedInstructionAccount("mint", accounts.mint.value),
         ),
       ],
     });
-  }
-  if (!accounts.tokenProgram.value) {
-    accounts.tokenProgram.value =
-      "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" as Address<"TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA">;
   }
   if (!accounts.associatedTokenProgram.value) {
     accounts.associatedTokenProgram.value =
@@ -298,89 +279,82 @@ export async function getClaimPredictionInstructionAsync<
   const getAccountMeta = getAccountMetaFactory(programAddress, "programId");
   return Object.freeze({
     accounts: [
-      getAccountMeta("user", accounts.user),
+      getAccountMeta("cranker", accounts.cranker),
       getAccountMeta("market", accounts.market),
-      getAccountMeta("userPrediction", accounts.userPrediction),
-      getAccountMeta("mint", accounts.mint),
       getAccountMeta("marketVault", accounts.marketVault),
-      getAccountMeta("userToken", accounts.userToken),
+      getAccountMeta("crankerVault", accounts.crankerVault),
+      getAccountMeta("mint", accounts.mint),
       getAccountMeta("tokenProgram", accounts.tokenProgram),
       getAccountMeta("associatedTokenProgram", accounts.associatedTokenProgram),
       getAccountMeta("systemProgram", accounts.systemProgram),
     ],
-    data: getClaimPredictionInstructionDataEncoder().encode(
-      args as ClaimPredictionInstructionDataArgs,
+    data: getCrankPayoutsInstructionDataEncoder().encode(
+      args as CrankPayoutsInstructionDataArgs,
     ),
     programAddress,
-  } as ClaimPredictionInstruction<
+  } as CrankPayoutsInstruction<
     TProgramAddress,
-    TAccountUser,
+    TAccountCranker,
     TAccountMarket,
-    TAccountUserPrediction,
-    TAccountMint,
     TAccountMarketVault,
-    TAccountUserToken,
+    TAccountCrankerVault,
+    TAccountMint,
     TAccountTokenProgram,
     TAccountAssociatedTokenProgram,
     TAccountSystemProgram
   >);
 }
 
-export type ClaimPredictionInput<
-  TAccountUser extends string = string,
+export type CrankPayoutsInput<
+  TAccountCranker extends string = string,
   TAccountMarket extends string = string,
-  TAccountUserPrediction extends string = string,
-  TAccountMint extends string = string,
   TAccountMarketVault extends string = string,
-  TAccountUserToken extends string = string,
+  TAccountCrankerVault extends string = string,
+  TAccountMint extends string = string,
   TAccountTokenProgram extends string = string,
   TAccountAssociatedTokenProgram extends string = string,
   TAccountSystemProgram extends string = string,
 > = {
-  user: TransactionSigner<TAccountUser>;
+  cranker: TransactionSigner<TAccountCranker>;
   market: Address<TAccountMarket>;
-  userPrediction: Address<TAccountUserPrediction>;
-  mint: Address<TAccountMint>;
   marketVault: Address<TAccountMarketVault>;
-  userToken: Address<TAccountUserToken>;
+  crankerVault: Address<TAccountCrankerVault>;
+  mint: Address<TAccountMint>;
   tokenProgram?: Address<TAccountTokenProgram>;
   associatedTokenProgram?: Address<TAccountAssociatedTokenProgram>;
   systemProgram?: Address<TAccountSystemProgram>;
-  roundId: ClaimPredictionInstructionDataArgs["roundId"];
+  roundId: CrankPayoutsInstructionDataArgs["roundId"];
 };
 
-export function getClaimPredictionInstruction<
-  TAccountUser extends string,
+export function getCrankPayoutsInstruction<
+  TAccountCranker extends string,
   TAccountMarket extends string,
-  TAccountUserPrediction extends string,
-  TAccountMint extends string,
   TAccountMarketVault extends string,
-  TAccountUserToken extends string,
+  TAccountCrankerVault extends string,
+  TAccountMint extends string,
   TAccountTokenProgram extends string,
   TAccountAssociatedTokenProgram extends string,
   TAccountSystemProgram extends string,
   TProgramAddress extends Address = typeof PRIVYFI_PROGRAM_ADDRESS,
 >(
-  input: ClaimPredictionInput<
-    TAccountUser,
+  input: CrankPayoutsInput<
+    TAccountCranker,
     TAccountMarket,
-    TAccountUserPrediction,
-    TAccountMint,
     TAccountMarketVault,
-    TAccountUserToken,
+    TAccountCrankerVault,
+    TAccountMint,
     TAccountTokenProgram,
     TAccountAssociatedTokenProgram,
     TAccountSystemProgram
   >,
   config?: { programAddress?: TProgramAddress },
-): ClaimPredictionInstruction<
+): CrankPayoutsInstruction<
   TProgramAddress,
-  TAccountUser,
+  TAccountCranker,
   TAccountMarket,
-  TAccountUserPrediction,
-  TAccountMint,
   TAccountMarketVault,
-  TAccountUserToken,
+  TAccountCrankerVault,
+  TAccountMint,
   TAccountTokenProgram,
   TAccountAssociatedTokenProgram,
   TAccountSystemProgram
@@ -390,12 +364,11 @@ export function getClaimPredictionInstruction<
 
   // Original accounts.
   const originalAccounts = {
-    user: { value: input.user ?? null, isWritable: true },
+    cranker: { value: input.cranker ?? null, isWritable: true },
     market: { value: input.market ?? null, isWritable: true },
-    userPrediction: { value: input.userPrediction ?? null, isWritable: true },
-    mint: { value: input.mint ?? null, isWritable: false },
     marketVault: { value: input.marketVault ?? null, isWritable: true },
-    userToken: { value: input.userToken ?? null, isWritable: true },
+    crankerVault: { value: input.crankerVault ?? null, isWritable: true },
+    mint: { value: input.mint ?? null, isWritable: false },
     tokenProgram: { value: input.tokenProgram ?? null, isWritable: false },
     associatedTokenProgram: {
       value: input.associatedTokenProgram ?? null,
@@ -428,67 +401,64 @@ export function getClaimPredictionInstruction<
   const getAccountMeta = getAccountMetaFactory(programAddress, "programId");
   return Object.freeze({
     accounts: [
-      getAccountMeta("user", accounts.user),
+      getAccountMeta("cranker", accounts.cranker),
       getAccountMeta("market", accounts.market),
-      getAccountMeta("userPrediction", accounts.userPrediction),
-      getAccountMeta("mint", accounts.mint),
       getAccountMeta("marketVault", accounts.marketVault),
-      getAccountMeta("userToken", accounts.userToken),
+      getAccountMeta("crankerVault", accounts.crankerVault),
+      getAccountMeta("mint", accounts.mint),
       getAccountMeta("tokenProgram", accounts.tokenProgram),
       getAccountMeta("associatedTokenProgram", accounts.associatedTokenProgram),
       getAccountMeta("systemProgram", accounts.systemProgram),
     ],
-    data: getClaimPredictionInstructionDataEncoder().encode(
-      args as ClaimPredictionInstructionDataArgs,
+    data: getCrankPayoutsInstructionDataEncoder().encode(
+      args as CrankPayoutsInstructionDataArgs,
     ),
     programAddress,
-  } as ClaimPredictionInstruction<
+  } as CrankPayoutsInstruction<
     TProgramAddress,
-    TAccountUser,
+    TAccountCranker,
     TAccountMarket,
-    TAccountUserPrediction,
-    TAccountMint,
     TAccountMarketVault,
-    TAccountUserToken,
+    TAccountCrankerVault,
+    TAccountMint,
     TAccountTokenProgram,
     TAccountAssociatedTokenProgram,
     TAccountSystemProgram
   >);
 }
 
-export type ParsedClaimPredictionInstruction<
+export type ParsedCrankPayoutsInstruction<
   TProgram extends string = typeof PRIVYFI_PROGRAM_ADDRESS,
   TAccountMetas extends readonly AccountMeta[] = readonly AccountMeta[],
 > = {
   programAddress: Address<TProgram>;
   accounts: {
-    user: TAccountMetas[0];
+    cranker: TAccountMetas[0];
     market: TAccountMetas[1];
-    userPrediction: TAccountMetas[2];
-    mint: TAccountMetas[3];
-    marketVault: TAccountMetas[4];
-    userToken: TAccountMetas[5];
-    tokenProgram: TAccountMetas[6];
-    associatedTokenProgram: TAccountMetas[7];
-    systemProgram: TAccountMetas[8];
+    marketVault: TAccountMetas[2];
+    crankerVault: TAccountMetas[3];
+    mint: TAccountMetas[4];
+    tokenProgram: TAccountMetas[5];
+    associatedTokenProgram: TAccountMetas[6];
+    systemProgram: TAccountMetas[7];
   };
-  data: ClaimPredictionInstructionData;
+  data: CrankPayoutsInstructionData;
 };
 
-export function parseClaimPredictionInstruction<
+export function parseCrankPayoutsInstruction<
   TProgram extends string,
   TAccountMetas extends readonly AccountMeta[],
 >(
   instruction: Instruction<TProgram> &
     InstructionWithAccounts<TAccountMetas> &
     InstructionWithData<ReadonlyUint8Array>,
-): ParsedClaimPredictionInstruction<TProgram, TAccountMetas> {
-  if (instruction.accounts.length < 9) {
+): ParsedCrankPayoutsInstruction<TProgram, TAccountMetas> {
+  if (instruction.accounts.length < 8) {
     throw new SolanaError(
       SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS,
       {
         actualAccountMetas: instruction.accounts.length,
-        expectedAccountMetas: 9,
+        expectedAccountMetas: 8,
       },
     );
   }
@@ -501,16 +471,15 @@ export function parseClaimPredictionInstruction<
   return {
     programAddress: instruction.programAddress,
     accounts: {
-      user: getNextAccount(),
+      cranker: getNextAccount(),
       market: getNextAccount(),
-      userPrediction: getNextAccount(),
-      mint: getNextAccount(),
       marketVault: getNextAccount(),
-      userToken: getNextAccount(),
+      crankerVault: getNextAccount(),
+      mint: getNextAccount(),
       tokenProgram: getNextAccount(),
       associatedTokenProgram: getNextAccount(),
       systemProgram: getNextAccount(),
     },
-    data: getClaimPredictionInstructionDataDecoder().decode(instruction.data),
+    data: getCrankPayoutsInstructionDataDecoder().decode(instruction.data),
   };
 }

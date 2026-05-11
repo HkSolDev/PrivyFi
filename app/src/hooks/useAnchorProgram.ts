@@ -11,7 +11,7 @@ export function useAnchorProgram() {
   const addressString = session?.account.address;
   const publicKey = useMemo(() => addressString ? new PublicKey(addressString) : null, [addressString]);
   
-  const connection = useMemo(() => new Connection('http://127.0.0.1:8899', 'confirmed'), []);
+  const connection = useMemo(() => new Connection(process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com', 'confirmed'), []);
   
   // Create a mock wallet interface that AnchorProvider accepts
   const wallet = useMemo(() => {

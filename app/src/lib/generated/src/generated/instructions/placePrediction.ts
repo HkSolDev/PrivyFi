@@ -41,9 +41,10 @@ import {
 import {
   getAccountMetaFactory,
   getAddressFromResolvedInstructionAccount,
+  getNonNullResolvedInstructionInput,
   type ResolvedInstructionAccount,
 } from "@solana/program-client-core";
-import { findUserPredictionPda } from "../pdas";
+import { findMarketPda, findUserPredictionPda } from "../pdas";
 import { PRIVYFI_PROGRAM_ADDRESS } from "../programs";
 
 export const PLACE_PREDICTION_DISCRIMINATOR: ReadonlyUint8Array =
@@ -63,6 +64,7 @@ export type PlacePredictionInstruction<
   TAccountMint extends string | AccountMeta<string> = string,
   TAccountUserToken extends string | AccountMeta<string> = string,
   TAccountMarketVault extends string | AccountMeta<string> = string,
+  TAccountOracleFeed extends string | AccountMeta<string> = string,
   TAccountTokenProgram extends string | AccountMeta<string> =
     "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
   TAccountSystemProgram extends string | AccountMeta<string> =
@@ -92,6 +94,9 @@ export type PlacePredictionInstruction<
       TAccountMarketVault extends string
         ? WritableAccount<TAccountMarketVault>
         : TAccountMarketVault,
+      TAccountOracleFeed extends string
+        ? ReadonlyAccount<TAccountOracleFeed>
+        : TAccountOracleFeed,
       TAccountTokenProgram extends string
         ? ReadonlyAccount<TAccountTokenProgram>
         : TAccountTokenProgram,
@@ -107,11 +112,13 @@ export type PlacePredictionInstruction<
 
 export type PlacePredictionInstructionData = {
   discriminator: ReadonlyUint8Array;
+  roundId: bigint;
   predictedBucket: number;
   amount: bigint;
 };
 
 export type PlacePredictionInstructionDataArgs = {
+  roundId: number | bigint;
   predictedBucket: number;
   amount: number | bigint;
 };
@@ -120,6 +127,7 @@ export function getPlacePredictionInstructionDataEncoder(): FixedSizeEncoder<Pla
   return transformEncoder(
     getStructEncoder([
       ["discriminator", fixEncoderSize(getBytesEncoder(), 8)],
+      ["roundId", getU64Encoder()],
       ["predictedBucket", getU8Encoder()],
       ["amount", getU64Encoder()],
     ]),
@@ -130,6 +138,7 @@ export function getPlacePredictionInstructionDataEncoder(): FixedSizeEncoder<Pla
 export function getPlacePredictionInstructionDataDecoder(): FixedSizeDecoder<PlacePredictionInstructionData> {
   return getStructDecoder([
     ["discriminator", fixDecoderSize(getBytesDecoder(), 8)],
+    ["roundId", getU64Decoder()],
     ["predictedBucket", getU8Decoder()],
     ["amount", getU64Decoder()],
   ]);
@@ -152,19 +161,22 @@ export type PlacePredictionAsyncInput<
   TAccountMint extends string = string,
   TAccountUserToken extends string = string,
   TAccountMarketVault extends string = string,
+  TAccountOracleFeed extends string = string,
   TAccountTokenProgram extends string = string,
   TAccountSystemProgram extends string = string,
   TAccountAssociatedTokenProgram extends string = string,
 > = {
   user: TransactionSigner<TAccountUser>;
-  market: Address<TAccountMarket>;
+  market?: Address<TAccountMarket>;
   userPrediction?: Address<TAccountUserPrediction>;
   mint: Address<TAccountMint>;
   userToken?: Address<TAccountUserToken>;
   marketVault?: Address<TAccountMarketVault>;
+  oracleFeed: Address<TAccountOracleFeed>;
   tokenProgram?: Address<TAccountTokenProgram>;
   systemProgram?: Address<TAccountSystemProgram>;
   associatedTokenProgram?: Address<TAccountAssociatedTokenProgram>;
+  roundId: PlacePredictionInstructionDataArgs["roundId"];
   predictedBucket: PlacePredictionInstructionDataArgs["predictedBucket"];
   amount: PlacePredictionInstructionDataArgs["amount"];
 };
@@ -176,6 +188,7 @@ export async function getPlacePredictionInstructionAsync<
   TAccountMint extends string,
   TAccountUserToken extends string,
   TAccountMarketVault extends string,
+  TAccountOracleFeed extends string,
   TAccountTokenProgram extends string,
   TAccountSystemProgram extends string,
   TAccountAssociatedTokenProgram extends string,
@@ -188,6 +201,7 @@ export async function getPlacePredictionInstructionAsync<
     TAccountMint,
     TAccountUserToken,
     TAccountMarketVault,
+    TAccountOracleFeed,
     TAccountTokenProgram,
     TAccountSystemProgram,
     TAccountAssociatedTokenProgram
@@ -202,6 +216,7 @@ export async function getPlacePredictionInstructionAsync<
     TAccountMint,
     TAccountUserToken,
     TAccountMarketVault,
+    TAccountOracleFeed,
     TAccountTokenProgram,
     TAccountSystemProgram,
     TAccountAssociatedTokenProgram
@@ -218,6 +233,7 @@ export async function getPlacePredictionInstructionAsync<
     mint: { value: input.mint ?? null, isWritable: false },
     userToken: { value: input.userToken ?? null, isWritable: true },
     marketVault: { value: input.marketVault ?? null, isWritable: true },
+    oracleFeed: { value: input.oracleFeed ?? null, isWritable: false },
     tokenProgram: { value: input.tokenProgram ?? null, isWritable: false },
     systemProgram: { value: input.systemProgram ?? null, isWritable: false },
     associatedTokenProgram: {
@@ -234,6 +250,15 @@ export async function getPlacePredictionInstructionAsync<
   const args = { ...input };
 
   // Resolve default values.
+  if (!accounts.market.value) {
+    accounts.market.value = await findMarketPda({
+      oracleFeed: getAddressFromResolvedInstructionAccount(
+        "oracleFeed",
+        accounts.oracleFeed.value,
+      ),
+      roundId: getNonNullResolvedInstructionInput("roundId", args.roundId),
+    });
+  }
   if (!accounts.userPrediction.value) {
     accounts.userPrediction.value = await findUserPredictionPda({
       user: getAddressFromResolvedInstructionAccount(
@@ -246,6 +271,10 @@ export async function getPlacePredictionInstructionAsync<
       ),
     });
   }
+  if (!accounts.tokenProgram.value) {
+    accounts.tokenProgram.value =
+      "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" as Address<"TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA">;
+  }
   if (!accounts.userToken.value) {
     accounts.userToken.value = await getProgramDerivedAddress({
       programAddress:
@@ -254,12 +283,11 @@ export async function getPlacePredictionInstructionAsync<
         getAddressEncoder().encode(
           getAddressFromResolvedInstructionAccount("user", accounts.user.value),
         ),
-        getBytesEncoder().encode(
-          new Uint8Array([
-            6, 221, 246, 225, 215, 101, 161, 147, 217, 203, 225, 70, 206, 235,
-            121, 172, 28, 180, 133, 237, 95, 91, 55, 145, 58, 140, 245, 133,
-            126, 255, 0, 169,
-          ]),
+        getAddressEncoder().encode(
+          getAddressFromResolvedInstructionAccount(
+            "tokenProgram",
+            accounts.tokenProgram.value,
+          ),
         ),
         getAddressEncoder().encode(
           getAddressFromResolvedInstructionAccount("mint", accounts.mint.value),
@@ -278,22 +306,17 @@ export async function getPlacePredictionInstructionAsync<
             accounts.market.value,
           ),
         ),
-        getBytesEncoder().encode(
-          new Uint8Array([
-            6, 221, 246, 225, 215, 101, 161, 147, 217, 203, 225, 70, 206, 235,
-            121, 172, 28, 180, 133, 237, 95, 91, 55, 145, 58, 140, 245, 133,
-            126, 255, 0, 169,
-          ]),
+        getAddressEncoder().encode(
+          getAddressFromResolvedInstructionAccount(
+            "tokenProgram",
+            accounts.tokenProgram.value,
+          ),
         ),
         getAddressEncoder().encode(
           getAddressFromResolvedInstructionAccount("mint", accounts.mint.value),
         ),
       ],
     });
-  }
-  if (!accounts.tokenProgram.value) {
-    accounts.tokenProgram.value =
-      "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" as Address<"TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA">;
   }
   if (!accounts.systemProgram.value) {
     accounts.systemProgram.value =
@@ -313,6 +336,7 @@ export async function getPlacePredictionInstructionAsync<
       getAccountMeta("mint", accounts.mint),
       getAccountMeta("userToken", accounts.userToken),
       getAccountMeta("marketVault", accounts.marketVault),
+      getAccountMeta("oracleFeed", accounts.oracleFeed),
       getAccountMeta("tokenProgram", accounts.tokenProgram),
       getAccountMeta("systemProgram", accounts.systemProgram),
       getAccountMeta("associatedTokenProgram", accounts.associatedTokenProgram),
@@ -329,6 +353,7 @@ export async function getPlacePredictionInstructionAsync<
     TAccountMint,
     TAccountUserToken,
     TAccountMarketVault,
+    TAccountOracleFeed,
     TAccountTokenProgram,
     TAccountSystemProgram,
     TAccountAssociatedTokenProgram
@@ -342,6 +367,7 @@ export type PlacePredictionInput<
   TAccountMint extends string = string,
   TAccountUserToken extends string = string,
   TAccountMarketVault extends string = string,
+  TAccountOracleFeed extends string = string,
   TAccountTokenProgram extends string = string,
   TAccountSystemProgram extends string = string,
   TAccountAssociatedTokenProgram extends string = string,
@@ -352,9 +378,11 @@ export type PlacePredictionInput<
   mint: Address<TAccountMint>;
   userToken: Address<TAccountUserToken>;
   marketVault: Address<TAccountMarketVault>;
+  oracleFeed: Address<TAccountOracleFeed>;
   tokenProgram?: Address<TAccountTokenProgram>;
   systemProgram?: Address<TAccountSystemProgram>;
   associatedTokenProgram?: Address<TAccountAssociatedTokenProgram>;
+  roundId: PlacePredictionInstructionDataArgs["roundId"];
   predictedBucket: PlacePredictionInstructionDataArgs["predictedBucket"];
   amount: PlacePredictionInstructionDataArgs["amount"];
 };
@@ -366,6 +394,7 @@ export function getPlacePredictionInstruction<
   TAccountMint extends string,
   TAccountUserToken extends string,
   TAccountMarketVault extends string,
+  TAccountOracleFeed extends string,
   TAccountTokenProgram extends string,
   TAccountSystemProgram extends string,
   TAccountAssociatedTokenProgram extends string,
@@ -378,6 +407,7 @@ export function getPlacePredictionInstruction<
     TAccountMint,
     TAccountUserToken,
     TAccountMarketVault,
+    TAccountOracleFeed,
     TAccountTokenProgram,
     TAccountSystemProgram,
     TAccountAssociatedTokenProgram
@@ -391,6 +421,7 @@ export function getPlacePredictionInstruction<
   TAccountMint,
   TAccountUserToken,
   TAccountMarketVault,
+  TAccountOracleFeed,
   TAccountTokenProgram,
   TAccountSystemProgram,
   TAccountAssociatedTokenProgram
@@ -406,6 +437,7 @@ export function getPlacePredictionInstruction<
     mint: { value: input.mint ?? null, isWritable: false },
     userToken: { value: input.userToken ?? null, isWritable: true },
     marketVault: { value: input.marketVault ?? null, isWritable: true },
+    oracleFeed: { value: input.oracleFeed ?? null, isWritable: false },
     tokenProgram: { value: input.tokenProgram ?? null, isWritable: false },
     systemProgram: { value: input.systemProgram ?? null, isWritable: false },
     associatedTokenProgram: {
@@ -444,6 +476,7 @@ export function getPlacePredictionInstruction<
       getAccountMeta("mint", accounts.mint),
       getAccountMeta("userToken", accounts.userToken),
       getAccountMeta("marketVault", accounts.marketVault),
+      getAccountMeta("oracleFeed", accounts.oracleFeed),
       getAccountMeta("tokenProgram", accounts.tokenProgram),
       getAccountMeta("systemProgram", accounts.systemProgram),
       getAccountMeta("associatedTokenProgram", accounts.associatedTokenProgram),
@@ -460,6 +493,7 @@ export function getPlacePredictionInstruction<
     TAccountMint,
     TAccountUserToken,
     TAccountMarketVault,
+    TAccountOracleFeed,
     TAccountTokenProgram,
     TAccountSystemProgram,
     TAccountAssociatedTokenProgram
@@ -478,9 +512,10 @@ export type ParsedPlacePredictionInstruction<
     mint: TAccountMetas[3];
     userToken: TAccountMetas[4];
     marketVault: TAccountMetas[5];
-    tokenProgram: TAccountMetas[6];
-    systemProgram: TAccountMetas[7];
-    associatedTokenProgram: TAccountMetas[8];
+    oracleFeed: TAccountMetas[6];
+    tokenProgram: TAccountMetas[7];
+    systemProgram: TAccountMetas[8];
+    associatedTokenProgram: TAccountMetas[9];
   };
   data: PlacePredictionInstructionData;
 };
@@ -493,12 +528,12 @@ export function parsePlacePredictionInstruction<
     InstructionWithAccounts<TAccountMetas> &
     InstructionWithData<ReadonlyUint8Array>,
 ): ParsedPlacePredictionInstruction<TProgram, TAccountMetas> {
-  if (instruction.accounts.length < 9) {
+  if (instruction.accounts.length < 10) {
     throw new SolanaError(
       SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS,
       {
         actualAccountMetas: instruction.accounts.length,
-        expectedAccountMetas: 9,
+        expectedAccountMetas: 10,
       },
     );
   }
@@ -517,6 +552,7 @@ export function parsePlacePredictionInstruction<
       mint: getNextAccount(),
       userToken: getNextAccount(),
       marketVault: getNextAccount(),
+      oracleFeed: getNextAccount(),
       tokenProgram: getNextAccount(),
       systemProgram: getNextAccount(),
       associatedTokenProgram: getNextAccount(),
