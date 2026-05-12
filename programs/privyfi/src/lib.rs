@@ -69,11 +69,11 @@ pub mod privyfi {
     }
 
     pub fn initialize_faucet(ctx: Context<InitializeFaucet>) -> Result<()> {
-        instructions::initialize_faucet::initialize_faucet(ctx)
+        initialize_faucet_handler(ctx)
     }
 
     pub fn request_faucet(ctx: Context<RequestFaucet>, amount: u64) -> Result<()> {
-        instructions::request_faucet::request_faucet(ctx, amount)
+        request_faucet_handler(ctx, amount)
     }
 
     pub fn initialize_yield_store(ctx: Context<InitializeYieldStore>) -> Result<()> {

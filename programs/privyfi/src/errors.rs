@@ -34,4 +34,10 @@ pub enum PrivyFiError {
     NoPayout,
     #[msg("Invalid market for this prediction")]
     InvalidMarket,
+    #[msg("Cannot change predicted bucket for an existing prediction")]
+    CannotChangeBucket,
+    #[msg("Invalid prediction account PDA")]
+    InvalidPredictionAccount,
+    #[msg("Account is not owned by the program")]
+    InvalidAccountOwner,
 }

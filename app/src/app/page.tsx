@@ -140,7 +140,7 @@ export default function Home() {
                 </div>
                 <h2 className="text-xl md:text-2xl font-bold mb-4">Connect Your Wallet</h2>
                 <p className="text-muted-foreground mb-8 text-sm md:text-base">
-                  Connect your Solflare or Phantom wallet to access your portfolio and predict SOL price.
+                  Connect your Solana wallet to access your portfolio and predict SOL price.
                 </p>
                 <div className="flex justify-center">
                   <ConnectButton />

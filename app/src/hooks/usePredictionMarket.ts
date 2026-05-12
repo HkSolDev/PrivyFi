@@ -1,8 +1,7 @@
 'use client';
 
-import { useCallback, useState, useEffect } from 'react';
-import { useWalletSession } from '@solana/react-hooks';
-import { Connection, PublicKey, Transaction } from '@solana/web3.js';
+import { useCallback, useState } from 'react';
+import { useWalletSession, useSendTransaction } from '@solana/react-hooks';
 import { address } from '@solana/kit';
 import { 
   getPlacePredictionInstructionAsync,
@@ -12,17 +11,11 @@ import {
 } from '../lib/generated/src/generated/instructions';
 import { findMarketPda } from '../lib/generated/src/generated/pdas';
 
-const DEVNET_RPC = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com';
-const DEVNET_USDC_MINT = address('Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr');
-
-declare global {
-  interface Window {
-    solana?: any;
-  }
-}
+const DEVNET_USDC_MINT = address('4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU');
 
 export function usePredictionMarket() {
   const session = useWalletSession();
+  const { send, isSending: hookSending, error: hookError } = useSendTransaction();
   const userAddress = session?.account?.address;
 
   const [status, setStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle');
@@ -31,49 +24,34 @@ export function usePredictionMarket() {
 
   const sendIx = useCallback(async (generatedIx: any) => {
     if (!userAddress) throw new Error('Wallet not connected');
-    if (!window.solana?.signTransaction) throw new Error('Solflare not detected. Make sure your wallet extension is installed.');
-
     setStatus('sending');
     setError(null);
     setSignature(null);
 
     try {
-      const connection = new Connection(DEVNET_RPC, 'confirmed');
-      const { blockhash } = await connection.getLatestBlockhash('confirmed');
-
-      const tx = new Transaction();
-      tx.recentBlockhash = blockhash;
-      tx.feePayer = new PublicKey(userAddress);
-
-      const keys = (generatedIx.accounts || []).map((a: any) => ({
-        pubkey: new PublicKey(typeof a.address === 'string' ? a.address : String(a.address)),
-        isSigner: a.role === 1 || a.role === 3,
-        isWritable: a.role === 1 || a.role === 2,
-      }));
-
-      tx.add({
-        keys,
-        programId: new PublicKey(generatedIx.programAddress),
-        data: Buffer.from(generatedIx.data),
-      });
-
-      // Sign with Solflare via wallet-standard
-      const signedTx = await window.solana.signTransaction(tx);
-
-      // Send the signed transaction
-      const sig = await connection.sendRawTransaction(signedTx.serialize(), { skipPreflight: false, preflightCommitment: 'confirmed' });
-      await connection.confirmTransaction(sig, 'confirmed');
-
+      // The first account (user) must be a writable signer for Anchor
+      const ix = {
+        ...generatedIx,
+        accounts: generatedIx.accounts.map((a: any, i: number) =>
+          i === 0 ? { ...a, role: 1 } : a
+        ),
+      };
+      const sig = await send(
+        { instructions: [ix], feePayer: userAddress },
+        { commitment: 'confirmed' }
+      );
       setStatus('success');
       setSignature(sig);
       return sig;
     } catch (err: any) {
+      console.error('[sendIx] Full error:', err);
+      if (err?.transactionPlanResult) console.error('[sendIx] Plan result:', err.transactionPlanResult);
       const msg = err?.message || err?.toString() || 'Transaction failed';
       setStatus('error');
       setError(msg);
       throw err;
     }
-  }, [userAddress]);
+  }, [userAddress, send]);
 
   const initializeMarket = useCallback(async (oracleFeed: string, roundId: number | bigint, basePrice: number | bigint, precisionStep: number | bigint) => {
     if (!userAddress) throw new Error('Wallet not connected');

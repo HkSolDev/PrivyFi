@@ -38,7 +38,7 @@ pub struct RequestFaucet<'info> {
     pub system_program: Program<'info, System>,
 }
 
-pub fn request_faucet(ctx: Context<RequestFaucet>, amount: u64) -> Result<()> {
+pub fn request_faucet_handler(ctx: Context<RequestFaucet>, amount: u64) -> Result<()> {
     let mint_key = ctx.accounts.mint.key();
     let bump = ctx.bumps.faucet_authority;
     let signer_seeds: &[&[&[u8]]] = &[&[b"faucet", mint_key.as_ref(), &[bump]]];

@@ -30,6 +30,6 @@ pub struct InitializeFaucet<'info> {
     pub system_program: Program<'info, System>,
 }
 
-pub fn initialize_faucet(_ctx: Context<InitializeFaucet>) -> Result<()> {
+pub fn initialize_faucet_handler(_ctx: Context<InitializeFaucet>) -> Result<()> {
     Ok(())
 }

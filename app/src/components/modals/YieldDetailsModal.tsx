@@ -34,7 +34,7 @@ export default function YieldDetailsModal({ strategy, isOpen, onClose }: YieldDe
   const [depositAmount, setDepositAmount] = useState<string>('10');
 
   const MINT_ADDRESSES: Record<string, string> = {
-    'USDC': process.env.NEXT_PUBLIC_FAKE_USDC_MINT || 'Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr',
+    'USDC': process.env.NEXT_PUBLIC_FAKE_USDC_MINT || '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU',
     'SOL': 'So11111111111111111111111111111111111111112',
     'PUSD': process.env.NEXT_PUBLIC_FAKE_PUSD_MINT || '9m4cLdJAGDgsuwHwu1up2avvatfmiSzgMa6aarHR135N', 
     'AUDD': process.env.NEXT_PUBLIC_FAKE_AUDD_MINT || 'HX4ENGDHv2F5cvWrBWAhdnEYQkA1U645G6LUs5uiWsQ',

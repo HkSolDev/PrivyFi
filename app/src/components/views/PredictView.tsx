@@ -10,11 +10,13 @@ import { cn } from '@/lib/utils';
 import { usePredictionMarket } from '@/hooks/usePredictionMarket';
 import { useWalletSession } from '@solana/react-hooks';
 import { toast } from 'sonner';
+import PerformanceChart from '@/components/PerformanceChart';
 
 const PYTH_SOL_USD = 'J83w4HKfqxwcq3BEMMkPFSppX3gqekLyLREK5kEXs2Nd';
 const PYTH_SOL_FEED_ID = 'ef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d';
-const DEVNET_USDC_MINT = 'Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr';
+const DEVNET_USDC_MINT = process.env.NEXT_PUBLIC_FAKE_USDC_MINT || '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU';
 const ROUND_DURATION = 60;
+const PREDICTION_WINDOW = 30;
 const PRICE_HISTORY_LENGTH = 60;
 
 interface PricePoint { time: number; price: number }
@@ -46,19 +48,22 @@ function getCurrentRoundEnd(): { roundId: number; endsAt: number; timeLeft: numb
 export default function PredictView() {
   const session = useWalletSession();
   const address = session?.account.address;
-  const { placePrediction, isSending, error: txError } = usePredictionMarket();
+  const { placePrediction, claimPrediction, isSending, error: txError } = usePredictionMarket();
 
   const [predictionPrice, setPredictionPrice] = useState('150.00');
   const [livePrice, setLivePrice] = useState<number>(150);
   const [priceHistory, setPriceHistory] = useState<PricePoint[]>([]);
   const [priceLoading, setPriceLoading] = useState(true);
-  const [phase, setPhase] = useState<'idle' | 'forecast' | 'predicting' | 'locked' | 'resolved'>('idle');
+  const [phase, setPhase] = useState<'idle' | 'forecast' | 'predicting' | 'placed' | 'locked' | 'resolved'>('idle');
   const [roundError, setRoundError] = useState<string | null>(null);
   const [lastPrediction, setLastPrediction] = useState<number | null>(null);
   const [settlementPrice, setSettlementPrice] = useState<number | null>(null);
   const [timeLeft, setTimeLeft] = useState(60);
   const [roundId, setRoundId] = useState(0);
   const [participantCount, setParticipantCount] = useState(0);
+  const [claimState, setClaimState] = useState<'idle' | 'claiming' | 'won' | 'lost'>('idle');
+  const [payoutAmount, setPayoutAmount] = useState<number | null>(null);
+  const predictedRoundRef = useRef<number>(0);
 
   // ── Fetch initial price ──────────────────────────────────
   useEffect(() => {
@@ -103,30 +108,66 @@ export default function PredictView() {
   }, []);
 
   // ── Auto-detect market state ─────────────────────────────
-  // If we're in forecast and timer hits 0, lock the round.
   useEffect(() => {
-    if (phase === 'forecast' && timeLeft <= 0) {
+    if (phase === 'placed' && timeLeft <= 0) {
       setPhase('locked');
       setSettlementPrice(livePrice);
       setTimeout(() => setPhase('resolved'), 4000);
     }
   }, [timeLeft, phase, livePrice]);
 
+  // ── Auto-claim on resolve ───────────────────────────────
+  useEffect(() => {
+    if (phase !== 'resolved' || claimState !== 'idle' || !lastPrediction) return;
+
+    const autoClaim = async () => {
+      const claimRound = predictedRoundRef.current;
+      if (!claimRound) return;
+      setClaimState('claiming');
+      try {
+        const sig = await claimPrediction(PYTH_SOL_USD, claimRound);
+        if (sig) {
+          setClaimState('won');
+          toast.success('You won! Payout sent to your wallet.');
+        }
+      } catch (err: any) {
+        const msg = err?.message || '';
+        if (
+          msg.includes('NotAWinner') ||
+          msg.includes('NoPayout') ||
+          msg.includes('no record of a prior credit')
+        ) {
+          setClaimState('lost');
+          toast('You lost this round. Better luck next time!');
+        } else if (
+          msg.includes('AlreadyClaimed')
+        ) {
+          setClaimState('won');
+        } else {
+          setClaimState('lost');
+        }
+      }
+    };
+    autoClaim();
+  }, [phase, claimState, lastPrediction, claimPrediction]);
+
   // ── Handlers ─────────────────────────────────────────────
   const handleStartRound = useCallback(() => {
     if (!address) { toast.error('Connect your wallet first'); return; }
     const { timeLeft: tl } = getCurrentRoundEnd();
-    if (tl <= 0) { toast.error('This round just ended. Wait for the next one.'); return; }
+    if (tl <= PREDICTION_WINDOW) { toast.error('This round is already settling. Wait for the next one.'); return; }
     setPhase('forecast');
     setRoundError(null);
     setLastPrediction(null);
     setSettlementPrice(null);
+    setClaimState('idle');
+    setPayoutAmount(null);
   }, [address]);
 
   const handlePredict = useCallback(async () => {
     if (!address) { toast.error('Connect your wallet first'); return; }
     const { timeLeft: tl } = getCurrentRoundEnd();
-    if (tl <= 0) { toast.error('Round ended! Wait for the next one.'); return; }
+    if (tl <= PREDICTION_WINDOW) { toast.error('Predictions closed! Wait for next round.'); return; }
 
     const price = parseFloat(predictionPrice);
     if (isNaN(price) || price < 50 || price > 500) {
@@ -144,44 +185,51 @@ export default function PredictView() {
       const sig = await placePrediction(PYTH_SOL_USD, roundId, bucket, amount);
       if (sig) {
         setLastPrediction(price);
+        predictedRoundRef.current = roundId;
         setParticipantCount(prev => prev + 1);
+        setPhase('placed');
+        setClaimState('idle');
+        setPayoutAmount(null);
         toast.success(`Prediction locked! Round #${roundId}`);
       }
     } catch (err: any) {
       const msg = err?.message || err?.toString() || 'Transaction failed';
-      if (msg.includes('0x1') || msg.includes('custom program error')) {
+      if (
+        msg.includes('0x1') ||
+        msg.includes('custom program error') ||
+        msg.includes('Attempt to debit') ||
+        msg.includes('no record of a prior credit')
+      ) {
         setRoundError('Insufficient USDC balance. Get devnet tokens from the faucet below.');
       } else if (msg.includes('User rejected')) {
         setRoundError('Signature cancelled in wallet.');
       } else if (msg.includes('BettingWindowClosed')) {
         setRoundError('This round just closed. Try the next one!');
       } else {
-        setRoundError(`Error: ${msg.slice(0, 100)}`);
+        setRoundError(`Error: ${msg.slice(0, 120)}`);
       }
       setPhase('forecast');
     }
   }, [address, predictionPrice, roundId, placePrediction]);
 
   const handleFaucet = useCallback(async () => {
+    if (!address) { toast.error('Connect your wallet first'); return; }
     try {
       const res = await fetch('/api/faucet', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mint: DEVNET_USDC_MINT, amount: 10_000_000 }),
+        body: JSON.stringify({ targetAddress: address, mintAddress: DEVNET_USDC_MINT }),
       });
       const data = await res.json();
-      if (data.signature) toast.success('Got 10 USDC from devnet faucet!');
+      if (data.signature) toast.success('Got devnet USDC from faucet!');
       else toast.error(data.error || 'Faucet failed');
     } catch { toast.error('Faucet request failed'); }
-  }, []);
+  }, [address]);
 
   const priceNum = parseFloat(predictionPrice) || 150;
   const bucketIndex = Math.max(0, Math.min(99, Math.floor((priceNum - 50) / 4.5)));
-  const prices = priceHistory.map(p => p.price);
-  const minPrice = Math.min(...prices, livePrice);
-  const maxPrice = Math.max(...prices, livePrice);
-  const chartRange = (maxPrice - minPrice) || 1;
-  const isRoundActive = timeLeft > 0;
+  const isRoundActive = timeLeft > PREDICTION_WINDOW;
+  const predictionTimeLeft = Math.max(0, timeLeft - PREDICTION_WINDOW);
 
   if (priceLoading) {
     return (
@@ -203,7 +251,7 @@ export default function PredictView() {
             SOL Price Prediction
           </h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Round #{roundId} &middot; Predict SOL price &middot; Settled by Pyth oracle
+            Round #{roundId} &middot; {PREDICTION_WINDOW}s to predict &middot; Settled by Pyth oracle
           </p>
         </div>
         <div className="flex items-center gap-4">
@@ -217,21 +265,25 @@ export default function PredictView() {
             "text-center p-2.5 rounded-xl border min-w-[80px]",
             isRoundActive
               ? 'border-emerald-500/30 bg-emerald-500/5'
-              : 'border-orange-500/30 bg-orange-500/5'
+              : timeLeft > 0
+                ? 'border-orange-500/30 bg-orange-500/5'
+                : 'border-red-500/30 bg-red-500/5'
           )}>
             <p className={cn(
               "text-[9px] font-bold uppercase tracking-widest",
-              isRoundActive ? 'text-emerald-400' : 'text-orange-400'
+              isRoundActive ? 'text-emerald-400' : timeLeft > 0 ? 'text-orange-400' : 'text-red-400'
             )}>
-              {isRoundActive ? 'Open' : 'Closed'}
+              {isRoundActive ? 'Predict' : timeLeft > 0 ? 'Settling' : 'Closed'}
             </p>
             <p className={cn(
               "text-2xl font-black font-mono",
-              isRoundActive ? 'text-emerald-400' : 'text-orange-400'
+              isRoundActive ? 'text-emerald-400' : timeLeft > 0 ? 'text-orange-400' : 'text-red-400'
             )}>
               {isRoundActive
-                ? timeLeft.toString().padStart(2, '0')
-                : '00'
+                ? predictionTimeLeft.toString().padStart(2, '0')
+                : timeLeft > 0
+                  ? timeLeft.toString().padStart(2, '0')
+                  : '00'
               }
             </p>
           </div>
@@ -242,57 +294,36 @@ export default function PredictView() {
       <Card className="border-border/50 bg-card/60 backdrop-blur-xl overflow-hidden">
         <CardContent className="p-0">
 
-          {/* ── Chart (thin line, Trepa-style) ────────────── */}
-          <div className="relative h-48 sm:h-52 w-full border-b border-border/20 bg-[#07070d]">
-            {/* Grid */}
-            <div className="absolute inset-0 opacity-[0.03]"
-              style={{
-                backgroundImage: `linear-gradient(0deg, #fff 1px, transparent 1px)`,
-                backgroundSize: '100% 20%',
-              }}
+          {/* ── Chart (Recharts line, dashboard-style) ───── */}
+          <div className="relative h-56 sm:h-64 w-full border-b border-border/20 bg-card/40">
+            <PerformanceChart 
+              data={priceHistory.map((p, i) => ({
+                name: `${i}s`,
+                value: p.price,
+              }))}
             />
-            {/* Y-axis */}
-            <div className="absolute left-2 top-0 bottom-0 flex flex-col justify-between text-[8px] text-muted-foreground/25 font-mono py-1">
-              <span>{formatPrice(maxPrice)}</span>
-              <span>{formatPrice((maxPrice + minPrice) / 2)}</span>
-              <span>{formatPrice(minPrice)}</span>
-            </div>
-            {/* Line */}
-            <svg className="absolute inset-0 w-full h-full" preserveAspectRatio="none" viewBox={`0 0 ${priceHistory.length} 100`}>
-              <polyline
-                fill="none"
-                stroke="rgb(52,211,153)"
-                strokeWidth="1.2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                points={priceHistory.map((p, i) => {
-                  const y = 100 - ((p.price - minPrice) / chartRange) * 100;
-                  return `${i},${y}`;
-                }).join(' ')}
-              />
-            </svg>
-            {/* Prediction line */}
+            {/* Prediction marker overlay */}
             {phase !== 'idle' && (
-              <div className="absolute top-0 bottom-0 w-px bg-emerald-400/80 shadow-[0_0_6px_rgba(52,211,153,0.3)] z-10"
+              <div className="absolute top-0 bottom-8 w-px bg-emerald-400/80 shadow-[0_0_6px_rgba(52,211,153,0.3)] z-10 pointer-events-none"
                 style={{ left: `${((priceNum - 50) / 450) * 100}%` }}
               >
-                <div className="absolute -top-5 -translate-x-1/2 bg-emerald-500/90 text-black text-[9px] font-black px-1 py-0.5 rounded whitespace-nowrap">
+                <div className="absolute -top-0.5 -translate-x-1/2 bg-emerald-500/90 text-black text-[9px] font-black px-1 py-0.5 rounded whitespace-nowrap">
                   ${formatPrice(priceNum)}
                 </div>
               </div>
             )}
-            {/* Live price */}
-            <div className="absolute top-0 bottom-0 w-px bg-orange-400/50 z-20"
+            {/* Live price marker */}
+            <div className="absolute top-0 bottom-8 w-px bg-orange-400/50 z-20 pointer-events-none"
               style={{ left: `${((livePrice - 50) / 450) * 100}%` }}
             >
-              <div className="absolute -bottom-4 -translate-x-1/2 bg-orange-500/90 text-black text-[9px] font-black px-1 py-0.5 rounded whitespace-nowrap">
+              <div className="absolute bottom-0 -translate-x-1/2 translate-y-full mt-0.5 bg-orange-500/90 text-black text-[9px] font-black px-1 py-0.5 rounded whitespace-nowrap">
                 ${formatPrice(livePrice)}
               </div>
-              <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3 h-3 bg-orange-400/20 rounded-full animate-ping" />
-              <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-1 h-1 bg-orange-400 rounded-full" />
+              <div className="absolute top-4 -translate-x-1/2 w-3 h-3 bg-orange-400/20 rounded-full animate-ping" />
+              <div className="absolute top-4 -translate-x-1/2 w-1 h-1 bg-orange-400 rounded-full" />
             </div>
             {/* Live badge */}
-            <div className="absolute top-2 right-3 flex items-center gap-1">
+            <div className="absolute top-2 right-3 flex items-center gap-1 z-30">
               <span className="w-1 h-1 bg-emerald-400 rounded-full animate-pulse" />
               <span className="text-[8px] text-emerald-400/50 font-bold uppercase tracking-wider">LIVE</span>
             </div>
@@ -306,19 +337,21 @@ export default function PredictView() {
               <div className="text-center py-10 space-y-5">
                 <div className={cn(
                   "w-16 h-16 rounded-full flex items-center justify-center mx-auto",
-                  isRoundActive ? 'bg-emerald-500/10' : 'bg-white/5'
+                  isRoundActive ? 'bg-emerald-500/10' : timeLeft > 0 ? 'bg-orange-500/10' : 'bg-white/5'
                 )}>
                   {isRoundActive
                     ? <Clock size={30} className="text-emerald-400" />
-                    : <Crosshair size={30} className="text-muted-foreground" />
+                    : timeLeft > 0
+                      ? <Crosshair size={30} className="text-orange-400" />
+                      : <Crosshair size={30} className="text-muted-foreground" />
                   }
                 </div>
                 <div>
                   {isRoundActive ? (
                     <>
-                      <h3 className="text-xl font-black">Market Open</h3>
+                      <h3 className="text-xl font-black">Predictions Open</h3>
                       <p className="text-sm text-muted-foreground mt-1">
-                        Predict SOL price in this round &mdash; {timeLeft}s left
+                        Predict SOL price &mdash; {predictionTimeLeft}s left to enter
                       </p>
                   <p className="text-xs text-muted-foreground mt-3">
                         Entry: <span className="font-bold text-emerald-400">1 USDC</span>
@@ -326,11 +359,18 @@ export default function PredictView() {
                         &middot; Closest wins
                       </p>
                     </>
+                  ) : timeLeft > 0 ? (
+                    <>
+                      <h3 className="text-xl font-black">Settling</h3>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Predictions closed. Pyth oracle settling &mdash; {timeLeft}s remaining
+                      </p>
+                    </>
                   ) : (
                     <>
-                      <h3 className="text-xl font-black">Market Closed</h3>
+                      <h3 className="text-xl font-black">Round Ended</h3>
                       <p className="text-sm text-muted-foreground mt-1">
-                        This round just ended. Next round starts in {60 + timeLeft}s
+                        Next round starts in {ROUND_DURATION - PREDICTION_WINDOW}s
                       </p>
                     </>
                   )}
@@ -347,7 +387,7 @@ export default function PredictView() {
                 >
                   {isRoundActive ? (
                     <><Zap size={18} className="mr-2" /> Predict SOL Price</>
-                  ) : 'Round Closed'}
+                  ) : timeLeft > 0 ? 'Settling...' : 'Round Ended'}
                 </Button>
 
                 <div className="flex justify-center gap-6 text-xs text-muted-foreground">
@@ -355,6 +395,32 @@ export default function PredictView() {
                   <span>Every 60s</span>
                   <span>Win up to ~20x</span>
                 </div>
+              </div>
+            )}
+
+            {/* ── PLACED: waiting for round end ──────────── */}
+            {phase === 'placed' && (
+              <div className="text-center py-10 space-y-4">
+                <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto bg-emerald-500/10">
+                  <Target size={30} className="text-emerald-400" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-black">Prediction Locked!</h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    You predicted <span className="text-emerald-400 font-bold">${formatPrice(lastPrediction || 0)}</span>
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Waiting for round to end &mdash; {timeLeft}s remaining
+                  </p>
+                </div>
+                <div className="w-full max-w-xs mx-auto h-1.5 bg-white/5 rounded-full overflow-hidden">
+                  <div className="h-full bg-emerald-500 rounded-full transition-all duration-1000"
+                    style={{ width: `${(timeLeft / ROUND_DURATION) * 100}%` }}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  1 USDC locked &middot; Auto-settling at round end
+                </p>
               </div>
             )}
 
@@ -366,11 +432,11 @@ export default function PredictView() {
                   <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
                     <div
                       className="h-full bg-emerald-500 rounded-full transition-all duration-1000"
-                      style={{ width: `${(timeLeft / 60) * 100}%` }}
+                      style={{ width: `${(predictionTimeLeft / PREDICTION_WINDOW) * 100}%` }}
                     />
                   </div>
                   <span className="text-[10px] font-mono font-bold text-emerald-400 shrink-0 w-8 text-right">
-                    {timeLeft}s
+                    {predictionTimeLeft}s
                   </span>
                 </div>
 
@@ -380,32 +446,32 @@ export default function PredictView() {
                     Your Price Prediction
                   </label>
                   <div className="flex items-center gap-2">
-                    <Button variant="outline" size="icon" className="h-11 w-11 rounded-xl shrink-0"
-                      onClick={() => setPredictionPrice(prev => Math.max(50, (parseFloat(prev) || 150) - 1).toFixed(2))}
-                      disabled={phase === 'predicting'}
-                    >
-                      <ChevronDown size={16} />
-                    </Button>
-                    <div className="relative flex-1">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground">$</span>
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        value={predictionPrice}
-                        onChange={(e) => setPredictionPrice(e.target.value)}
-                        onBlur={() => {
-                          const v = parseFloat(predictionPrice);
-                          if (isNaN(v)) setPredictionPrice('150.00');
-                          else setPredictionPrice(Math.max(50, Math.min(500, v)).toFixed(2));
-                        }}
-                        className="w-full h-11 bg-black/40 border border-border rounded-lg text-center text-lg font-bold font-mono text-emerald-400 outline-none focus:ring-2 focus:ring-emerald-500/50 pl-6"
-                        disabled={phase === 'predicting'}
-                      />
-                    </div>
-                    <Button variant="outline" size="icon" className="h-11 w-11 rounded-xl shrink-0"
-                      onClick={() => setPredictionPrice(prev => Math.min(500, (parseFloat(prev) || 150) + 1).toFixed(2))}
-                      disabled={phase === 'predicting'}
-                    >
+                  <Button variant="outline" size="icon" className="h-11 w-11 rounded-xl shrink-0"
+                    onClick={() => setPredictionPrice(prev => Math.max(50, (parseFloat(prev) || 150) - 1).toFixed(2))}
+                    disabled={phase === 'predicting' || lastPrediction !== null}
+                  >
+                    <ChevronDown size={16} />
+                  </Button>
+                  <div className="relative flex-1">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground">$</span>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={predictionPrice}
+                      onChange={(e) => setPredictionPrice(e.target.value)}
+                      onBlur={() => {
+                        const v = parseFloat(predictionPrice);
+                        if (isNaN(v)) setPredictionPrice('150.00');
+                        else setPredictionPrice(Math.max(50, Math.min(500, v)).toFixed(2));
+                      }}
+                      className="w-full h-11 bg-black/40 border border-border rounded-lg text-center text-lg font-bold font-mono text-emerald-400 outline-none focus:ring-2 focus:ring-emerald-500/50 pl-6"
+                      disabled={phase === 'predicting' || lastPrediction !== null}
+                    />
+                  </div>
+                  <Button variant="outline" size="icon" className="h-11 w-11 rounded-xl shrink-0"
+                    onClick={() => setPredictionPrice(prev => Math.min(500, (parseFloat(prev) || 150) + 1).toFixed(2))}
+                    disabled={phase === 'predicting' || lastPrediction !== null}
+                  >
                       <ChevronUp size={16} />
                     </Button>
                   </div>
@@ -459,10 +525,10 @@ export default function PredictView() {
                   </div>
                 ) : (
                   <Button onClick={handlePredict}
-                    disabled={!isRoundActive}
+                    disabled={!isRoundActive || lastPrediction !== null}
                     className="w-full h-12 bg-emerald-500 hover:bg-emerald-400 text-black font-black rounded-xl text-base transition-all active:scale-[0.98] disabled:opacity-30"
                   >
-                    <Zap size={18} className="mr-2" /> Predict 1 USDC
+                    {lastPrediction ? 'Already Predicted' : <><Zap size={18} className="mr-2" /> Predict 1 USDC</>}
                   </Button>
                 )}
 
@@ -505,42 +571,84 @@ export default function PredictView() {
             {/* ── RESOLVED ──────────────────────────────────── */}
             {phase === 'resolved' && (
               <div className="text-center py-10 space-y-5">
-                <div className={cn(
-                  "w-16 h-16 rounded-full flex items-center justify-center mx-auto",
-                  lastPrediction && settlementPrice && Math.abs(lastPrediction - settlementPrice) < 2
-                    ? 'bg-emerald-500/15' : 'bg-white/5'
-                )}>
-                  <Activity size={30} className={cn(
-                    lastPrediction && settlementPrice && Math.abs(lastPrediction - settlementPrice) < 2
-                      ? 'text-emerald-400' : 'text-muted-foreground'
-                  )} />
-                </div>
-                <h3 className="text-xl font-black">Round #{roundId} Complete</h3>
-                <div className="flex items-center justify-center gap-8">
-                  <div className="text-center">
-                    <p className="text-[9px] text-muted-foreground font-bold uppercase">Your Guess</p>
-                    <p className="text-xl font-black font-mono">${formatPrice(lastPrediction || 0)}</p>
-                  </div>
-                  <div className="text-muted-foreground/30 text-lg">vs</div>
-                  <div className="text-center">
-                    <p className="text-[9px] text-muted-foreground font-bold uppercase">Actual</p>
-                    <p className="text-xl font-black font-mono text-emerald-400">${formatPrice(settlementPrice || livePrice)}</p>
-                  </div>
-                </div>
-                {lastPrediction && settlementPrice && (
-                  <p className="text-xs text-muted-foreground">
-                    Error: ${Math.abs(settlementPrice - lastPrediction).toFixed(2)}
-                    {Math.abs(settlementPrice - lastPrediction) < 1 && ' — Close call!'}
-                    {Math.abs(settlementPrice - lastPrediction) < 3 && ' — Not bad!'}
-                  </p>
+                {claimState === 'claiming' ? (
+                  <>
+                    <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto bg-orange-500/10">
+                      <Loader2 className="animate-spin text-orange-400" size={30} />
+                    </div>
+                    <h3 className="text-xl font-black">Checking Your Result...</h3>
+                    <p className="text-sm text-muted-foreground">Settling your prediction with the oracle.</p>
+                  </>
+                ) : claimState === 'won' ? (
+                  <>
+                    <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto bg-emerald-500/15">
+                      <Trophy size={30} className="text-emerald-400" />
+                    </div>
+                    <h3 className="text-xl font-black text-emerald-400">You Won! </h3>
+                    <div className="flex items-center justify-center gap-8">
+                      <div className="text-center">
+                        <p className="text-[9px] text-muted-foreground font-bold uppercase">Your Guess</p>
+                        <p className="text-xl font-black font-mono">${formatPrice(lastPrediction || 0)}</p>
+                      </div>
+                      <div className="text-muted-foreground/30 text-lg">vs</div>
+                      <div className="text-center">
+                        <p className="text-[9px] text-muted-foreground font-bold uppercase">Actual</p>
+                        <p className="text-xl font-black font-mono text-emerald-400">${formatPrice(settlementPrice || livePrice)}</p>
+                      </div>
+                    </div>
+                    <p className="text-sm text-muted-foreground">Payout sent to your wallet! Check your balance.</p>
+                  </>
+                ) : claimState === 'lost' ? (
+                  <>
+                    <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto bg-red-500/10">
+                      <Activity size={30} className="text-red-400" />
+                    </div>
+                    <h3 className="text-xl font-black text-red-400">You Lost</h3>
+                    <div className="flex items-center justify-center gap-8">
+                      <div className="text-center">
+                        <p className="text-[9px] text-muted-foreground font-bold uppercase">Your Guess</p>
+                        <p className="text-xl font-black font-mono">${formatPrice(lastPrediction || 0)}</p>
+                      </div>
+                      <div className="text-muted-foreground/30 text-lg">vs</div>
+                      <div className="text-center">
+                        <p className="text-[9px] text-muted-foreground font-bold uppercase">Actual</p>
+                        <p className="text-xl font-black font-mono text-emerald-400">${formatPrice(settlementPrice || livePrice)}</p>
+                      </div>
+                    </div>
+                    <p className="text-sm text-muted-foreground">Better luck next round!</p>
+                  </>
+                ) : (
+                  <>
+                    <div className={cn(
+                      "w-16 h-16 rounded-full flex items-center justify-center mx-auto",
+                      lastPrediction && settlementPrice && Math.abs(lastPrediction - settlementPrice) < 2
+                        ? 'bg-emerald-500/15' : 'bg-white/5'
+                    )}>
+                      <Activity size={30} className={cn(
+                        lastPrediction && settlementPrice && Math.abs(lastPrediction - settlementPrice) < 2
+                          ? 'text-emerald-400' : 'text-muted-foreground'
+                      )} />
+                    </div>
+                    <h3 className="text-xl font-black">Round Complete</h3>
+                    <div className="flex items-center justify-center gap-8">
+                      <div className="text-center">
+                        <p className="text-[9px] text-muted-foreground font-bold uppercase">Your Guess</p>
+                        <p className="text-xl font-black font-mono">${formatPrice(lastPrediction || 0)}</p>
+                      </div>
+                      <div className="text-muted-foreground/30 text-lg">vs</div>
+                      <div className="text-center">
+                        <p className="text-[9px] text-muted-foreground font-bold uppercase">Actual</p>
+                        <p className="text-xl font-black font-mono text-emerald-400">${formatPrice(settlementPrice || livePrice)}</p>
+                      </div>
+                    </div>
+                  </>
                 )}
-                <p className="text-xs text-muted-foreground">
-                  Winnings are auto-distributed by the crank. Check your wallet balance.
-                </p>
                 <Button onClick={() => {
                   setPhase('idle');
                   setLastPrediction(null);
                   setSettlementPrice(null);
+                  setClaimState('idle');
+                  setPayoutAmount(null);
                 }} className="bg-white/10 hover:bg-white/20 text-white h-11 px-6 rounded-xl font-bold">
                   <RefreshCw size={14} className="mr-2" /> Next Round
                 </Button>

@@ -1,9 +1,11 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
-import { MessageSquare, X, Send, Brain, Loader2, Sparkles } from 'lucide-react';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { MessageSquare, X, Send, Brain, Loader2, Sparkles, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { usePortfolio } from '@/hooks/usePortfolio';
+import { useYield } from '@/hooks/useYield';
 
 export default function GlobalChat() {
   const [isOpen, setIsOpen] = useState(false);
@@ -12,7 +14,11 @@ export default function GlobalChat() {
   ]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [chatError, setChatError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const { tokens: portfolio } = usePortfolio();
+  const { strategies } = useYield();
 
   useEffect(() => {
     if (messagesEndRef.current) {
@@ -20,30 +26,41 @@ export default function GlobalChat() {
     }
   }, [messages, isOpen]);
 
-  const handleSend = async () => {
-    if (!input.trim()) return;
-    
+  const handleSend = useCallback(async () => {
+    if (!input.trim() || isTyping) return;
+
     const userMessage = input.trim();
     setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
     setInput('');
     setIsTyping(true);
+    setChatError(null);
 
-    // Mock AI Response with slight delay to feel real
-    setTimeout(() => {
-      let aiResponse = "I've analyzed the current network state. The risk is balanced right now.";
-      
-      if (userMessage.toLowerCase().includes('solana') || userMessage.toLowerCase().includes('sol')) {
-        aiResponse = "Solana's DeFi TVL has been climbing. Our swarm consensus strongly recommends Kamino SOL lending for steady yield, but watch the Polymarket $250 prediction—it's highly volatile.";
-      } else if (userMessage.toLowerCase().includes('pusd') || userMessage.toLowerCase().includes('stable')) {
-        aiResponse = "PUSD is our top-rated stable vault. 32 models voted to keep funds here due to its 18.5% low-risk APY. It's a great safe harbor.";
-      } else if (userMessage.toLowerCase().includes('yield') || userMessage.toLowerCase().includes('apy')) {
-        aiResponse = "The highest yielding pool right now is Orca SOL-USDC. However, remember to check the 'rAPY' (Risk-Adjusted APY) before depositing!";
+    try {
+      const response = await fetch('/api/ai/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: userMessage,
+          portfolio,
+          strategies,
+        }),
+      });
+
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || 'AI request failed');
       }
 
-      setMessages(prev => [...prev, { role: 'ai', content: aiResponse }]);
+      const data = await response.json();
+      setMessages(prev => [...prev, { role: 'ai', content: data.content }]);
+    } catch (err: any) {
+      const fallback = "I'm having trouble reaching my neural mesh right now. Try again in a moment.";
+      setMessages(prev => [...prev, { role: 'ai', content: fallback }]);
+      setChatError(err.message);
+    } finally {
       setIsTyping(false);
-    }, 1500);
-  };
+    }
+  }, [input, isTyping, portfolio, strategies]);
 
   return (
     <>
@@ -98,6 +115,13 @@ export default function GlobalChat() {
               <div className="bg-white/5 border border-white/5 p-3 rounded-2xl rounded-bl-sm flex items-center gap-2">
                 <Loader2 size={14} className="text-purple-400 animate-spin" />
                 <span className="text-xs text-gray-400">Analyst is typing...</span>
+              </div>
+            </div>
+          )}
+          {chatError && (
+            <div className="flex justify-center">
+              <div className="text-[10px] text-red-400/60 flex items-center gap-1">
+                <AlertCircle size={10} /> {chatError}
               </div>
             </div>
           )}

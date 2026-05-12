@@ -16,7 +16,7 @@ pub struct PlacePrediction<'info> {
         payer = user,
         space = 8 + AccuracyMarket::INIT_SPACE,
         seeds = [b"accuracy_market", oracle_feed.key().as_ref(), round_id.to_le_bytes().as_ref()],
-        bump
+        bump  
     )]
     pub market: Box<Account<'info, AccuracyMarket>>,
 
@@ -77,7 +77,7 @@ pub fn place_prediction_handler(
         market.is_resolved = false;
         market.entry_fee = 10_000_000;
         market.prediction_histogram = [0; 100];
-        market.betting_deadline = clock.unix_timestamp + 60;
+        market.betting_deadline = clock.unix_timestamp + 30;
         market.actual_bucket = None;
         market.median_error = None;
         market.total_winning_weight = None;
@@ -120,6 +120,15 @@ pub fn place_prediction_handler(
 
     // 3. Update User Prediction State
     let user_prediction = &mut ctx.accounts.user_prediction;
+
+    if user_prediction.amount > 0 {
+        require_eq!(
+            user_prediction.predicted_bucket,
+            predicted_bucket,
+            PrivyFiError::CannotChangeBucket
+        );
+    }
+
     user_prediction.owner = ctx.accounts.user.key();
     user_prediction.market = ctx.accounts.market.key();
     user_prediction.predicted_bucket = predicted_bucket;

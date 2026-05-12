@@ -54,7 +54,7 @@ pub fn initialize_accuracy_market_handler(
     market.bump = ctx.bumps.market;
     market.entry_fee = 10_000_000;
     market.prediction_histogram = [0; 100];
-    market.betting_deadline = clock.unix_timestamp + 60;
+    market.betting_deadline = clock.unix_timestamp + 30;
     market.actual_bucket = None;
     market.median_error = None;
     market.total_winning_weight = None;

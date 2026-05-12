@@ -63,8 +63,16 @@ pub fn crank_payouts_handler<'info>(ctx: Context<'info, CrankPayouts<'info>>, _r
             UserPrediction::try_deserialize(&mut &data[..])?
         };
 
-        // Security: Ensure the PDA belongs to THIS market and hasn't been claimed
+        // Security: Ensure the PDA belongs to THIS program, THIS market, and matches expected seeds
+        require_keys_eq!(*prediction_info.owner, crate::ID, PrivyFiError::InvalidAccountOwner);
         require_keys_eq!(prediction.market, market.key(), PrivyFiError::InvalidMarket);
+        
+        let (expected_pda, _bump) = Pubkey::find_program_address(
+            &[b"prediction", prediction.owner.as_ref(), market.key().as_ref()],
+            ctx.program_id
+        );
+        require_keys_eq!(prediction_info.key(), expected_pda, PrivyFiError::InvalidPredictionAccount);
+
         if prediction.claimed { 
             continue; // Skip if already processed
         }

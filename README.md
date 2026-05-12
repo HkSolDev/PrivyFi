@@ -1,171 +1,111 @@
-# PrivyFi
+# 🛡️ PrivyFi: The High-Precision DeFi Suite on Solana
 
-> AI-powered DeFi yield advisor on Solana — find the best APY, simulate deposits, and hide your positions with on-chain privacy.
-
----
-
-## What Is PrivyFi?
-
-PrivyFi is a hackathon project built for **Solana Frontier (May 2026)**. Connect your Solflare wallet, let the AI read live Kamino pool data, and get a plain-English recommendation on where to put your USDC for the best yield — then simulate a deposit on devnet with one click. Toggle **Private Mode** to hide your position from public blockchain view using MagicBlock's Ephemeral Rollups.
-
-**Real data. Devnet execution. $0 cost.**
+> **AI-Powered Yield Optimization + Convex Accuracy Markets + On-Chain Privacy.**
 
 ---
 
-## Features
+## 🌟 Overview
 
-| Feature | Status |
-|---------|--------|
-| 🔗 Solflare wallet connect + .sol SNS domains | Week 2 |
-| 📊 Live portfolio via Zerion API (mainnet read) | Week 2 |
-| 🌊 Live Kamino APY data (mainnet read) | Week 2 |
-| 🤖 AI yield advisor via Llama 3.3 (OpenRouter free) | Week 2 |
-| 💰 Simulated USDC deposit/withdraw on devnet | Week 1 |
-| 🔒 Private Mode via MagicBlock PER | Week 2 |
-| 🎯 Mock reward points (Torque-style) | Week 2 |
+PrivyFi is a premium DeFi ecosystem built for the **Solana Frontier** hackathon. It bridges the gap between passive yield farming and active price speculation through a suite of intelligent tools:
+
+1.  **🤖 AI Yield Advisor**: Leverages Llama 3.3 to analyze live Kamino APYs and Zerion portfolio data, delivering personalized investment strategies in plain English.
+2.  **🎯 Accuracy Markets**: A unique prediction market where "closeness counts." Unlike binary "Up/Down" markets, PrivyFi rewards users based on how close their prediction was to the actual price using a **Convex Weighting System**.
+3.  **🔒 Private Mode**: Toggle on-chain privacy via **MagicBlock Ephemeral Rollups (PER)** to shield your positions from public view.
+4.  **⚡ Efficient Execution**: Optimized Anchor program featuring "Batch Cranking" to settle hundreds of predictions with minimal Compute Unit (CU) consumption and automated rent reclamation.
 
 ---
 
-## Architecture
+## 🏛️ Architecture
 
-```
-User (browser)
-  │ connects wallet
-  ▼
-Solflare SDK ──────────────────────────────────┐
-  │ wallet pubkey                              │
-  ▼                                            │
-Zerion API (mainnet read)                      │
-  │ token balances                             │
-  ▼                                            │
-Dashboard (React)                              │
-  │ user asks: "where to put 1000 USDC?"      │
-  ▼                                            │
-Vercel Serverless /api/ai                      │
-  ├── Kamino API → live APY data               │
-  ├── Jupiter Price API → token prices         │
-  └── OpenRouter (Llama 3.3) → AI response    │
-  ▼                                            │
-AI Recommendation shown to user               │
-  │ user clicks "Deposit"                     │
-  ▼                                            │
-Anchor Program (devnet) ◄──────────────────────┘
-  ├── deposit       → fake USDC → MockPool PDA
-  ├── withdraw      → MockPool PDA → user wallet
-  ├── record_action → increment UserRewards.points
-  └── toggle_private → MagicBlock PER hide/show
+```mermaid
+graph TD
+    User((User)) -->|Connects| Solflare[Solflare Wallet]
+    Solflare --> Dashboard[React Dashboard]
+    
+    subgraph "Intelligent Layer"
+        Dashboard --> AI[AI Yield Advisor]
+        AI -->|Reads| Kamino[Kamino APYs]
+        AI -->|Reads| Zerion[Zerion Portfolio]
+        AI -->|Reads| Jupiter[Jupiter Prices]
+    end
+
+    subgraph "Execution Layer (Solana Devnet)"
+        Dashboard -->|Deposit/Withdraw| YieldPool[Yield Pool PDA]
+        Dashboard -->|Predict| AccuracyMarket[Accuracy Market PDA]
+        AccuracyMarket -->|Settles via| Pyth[Pyth Oracle V2]
+    end
+
+    subgraph "Privacy Layer"
+        Dashboard -->|Private Mode| MagicBlock[MagicBlock Ephemeral Rollups]
+    end
 ```
 
 ---
 
-## Tech Stack
+## 🛠️ Smart Contract Features
 
-| Layer | Technology |
-|-------|-----------|
-| Smart Contract | Rust + Anchor 1.0 |
-| Frontend | React + TypeScript |
-| Hosting | Vercel (serverless functions + static) |
-| Wallet | Solflare SDK + `@solana/wallet-adapter` |
-| AI | OpenRouter → `meta-llama/llama-3.3-70b-instruct:free` |
-| Yield Data | Kamino Finance API (public, no key) |
-| Portfolio | Zerion API (free tier) |
-| Prices | Jupiter Price API (no key needed) |
-| Privacy | MagicBlock Ephemeral Rollups SDK |
-| RPC | Helius (devnet, free tier) |
+### 1. Accuracy Markets (The "Convex" Edge)
+Unlike traditional markets, PrivyFi calculates a **Median Error** for every round.
+- **Winners**: Users whose prediction error is less than the median.
+- **Rewards**: Calculated using `(Median - Error)^2`, ensuring that being "very right" pays out exponentially more than being "just right."
+
+### 2. High-Frequency Cranking
+The `crank_payouts` instruction is designed for bot operators:
+- **Batch Processing**: Settle multiple users in a single transaction.
+- **Rent Bounty**: The operator who "cranks" the market receives the SOL rent from closed user accounts as a reward.
 
 ---
 
-## Anchor Program — Accounts
+## 📂 Project Structure
 
-```
-MockPool PDA        seeds: ["mock_pool", pool_name]
-UserPosition PDA    seeds: ["position", owner, pool]
-UserRewards PDA     seeds: ["rewards", owner]
-UserProfile PDA     seeds: ["profile", owner]
-```
-
-## Anchor Program — Instructions
-
-```
-1. initialize_user   → creates UserProfile + UserRewards PDAs
-2. initialize_pool   → creates MockPool PDA (admin only)
-3. deposit           → transfers fake USDC to pool vault, creates UserPosition
-4. withdraw          → returns fake USDC to user, closes UserPosition
-5. toggle_private    → flips private_mode bool, calls MagicBlock PER
-6. record_action     → increments UserRewards.points
-```
-
----
-
-## Project Structure
-
-```
+```text
 privyfi/
 ├── programs/privyfi/src/
-│   ├── lib.rs
-│   ├── instructions/          ← 6 instruction handlers
-│   ├── state/                 ← 4 account structs
-│   └── errors.rs
+│   ├── instructions/          ← Core logic: Accuracy Markets, Yields, Faucets
+│   ├── state/                 ← PDAs: AccuracyMarket, UserPrediction, YieldStore
+│   ├── errors.rs              ← Custom Solana error codes
+│   └── lib.rs                 ← Main program entry
 ├── app/
-│   ├── api/                   ← Vercel serverless (AI, Zerion, Kamino)
-│   └── src/
-│       ├── components/        ← 7 React components
-│       ├── hooks/             ← 6 custom hooks
-│       └── utils/             ← airdrop, tokens, rewards helpers
-├── tests/privyfi.ts
-├── scripts/setup-devnet.ts
-├── Anchor.toml
-└── .env.example
+│   ├── src/hooks/             ← usePredictionMarket, useAI, useAnchorProgram
+│   ├── src/components/        ← Premium UI: Glassmorphism Dashboard, Charts
+│   └── api/                   ← Serverless backend for AI & Data
+├── tests/                     ← Comprehensive LiteSVM & Bankrun test suite
+└── Anchor.toml                ← Workspace configuration
 ```
 
 ---
 
-## Getting Started
+## 🚀 Getting Started
 
 ### Prerequisites
-- Rust + Cargo
-- Anchor CLI 1.0
-- Solana CLI 1.18+
-- Node.js 18+
+- **Anchor CLI 1.0**
+- **Solana CLI 1.18+**
+- **Node.js 20+ (pnpm recommended)**
 
-### Setup
+### Installation & Deployment
 
 ```bash
-# Clone
+# 1. Clone the repository
 git clone https://github.com/HkSolDev/PrivyFi.git
 cd PrivyFi
 
-# Configure devnet
-solana config set --url devnet
-solana airdrop 2
-
-# Build Anchor program
+# 2. Build the contract
 anchor build
 
-# Test the program
+# 3. Run the test suite (LiteSVM)
 anchor test
 
-# Deploy to devnet
+# 4. Deploy to Devnet
+solana config set --url devnet
 anchor deploy
-
-# Copy env and fill in your keys
-cp .env.example .env
 ```
-
-### Environment Variables
-
-```bash
-OPENROUTER_API_KEY=your_key_here
-ZERION_API_KEY=your_key_here
-HELIUS_API_KEY=your_key_here
-NEXT_PUBLIC_PROGRAM_ID=<deployed_program_id>
-NEXT_PUBLIC_FAKE_USDC_MINT=<devnet_usdc_mint>
-```
-
-Free API keys: [Zerion](https://zerion.io/api) · [Helius](https://helius.dev) · [OpenRouter](https://openrouter.ai) · Jupiter & MagicBlock need no key.
 
 ---
 
-## License
+## 📜 License
 
-MIT
+This project is licensed under the **MIT License**.
+
+---
+
+*Built with 🦀 and ☕ for the Solana Frontier Hackathon 2026.*
